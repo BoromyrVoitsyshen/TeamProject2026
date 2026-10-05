@@ -53,3 +53,6 @@
 
 ## Дані та БД
 Поки проєкт на стадії прототипу, усі розмови зберігаються у звичайних JSON-файлах у папці `data/chats/`. Жодної бази даних розгортати не потрібно. Коли проєкт масштабується, ми замінимо `ChatStorage` на Entity Framework Core без змін у логіці контролерів.
+
+## Посилання на дизайн
+https://www.figma.com/design/g8swP7duhrvI3IWAdLCoYh/CiteDesign?m=auto&t=N4wkvVdnlqKdQ9WJ-1
