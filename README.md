@@ -56,3 +56,6 @@ While the project is at the prototype stage, all conversations are stored in pla
 
 ## Design link
 https://www.figma.com/design/g8swP7duhrvI3IWAdLCoYh/CiteDesign?m=auto&t=N4wkvVdnlqKdQ9WJ-1
+
+## Blueprint link
+https://docs.google.com/document/d/1o1KD3aPaxhAhXGFQFTv9lYqB_miqYe9v/edit?usp=drive_link&ouid=104580997232242831904&rtpof=true&sd=true
