@@ -1,4 +1,5 @@
-﻿using AiChat.Api.Infrastructure;
+﻿using AiChat.Api.Domain;
+using AiChat.Api.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,26 +13,31 @@ public class Endpoint : IEndpoint
         app.MapPatch("/api/chats/{id}", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(string id, RenameRequest request, ChatStorage storage)
+    private static async Task<IResult> HandleAsync(string id, RenameRequest? request, ChatStorage storage)
     {
-        var chat = await storage.GetChatAsync(id);
-        if (chat == null) return Results.NotFound(new { error = "Розмову не знайдено" });
+        if (!ChatStorage.IsValidId(id)) return ApiResults.ChatNotFound();
 
-        chat.Title = request.Title;
-        chat.UpdatedAt = DateTime.UtcNow;
+        // Ті самі правила, що на сторінці: пробіли зводимо до одного, порожньо — не можна, до 100 символів
+        var title = ChatText.NormalizeSpaces(request?.Title);
+        if (title.Length == 0)
+            return ApiResults.Error(StatusCodes.Status400BadRequest, "Назва не може бути порожньою.");
+        if (title.Length > ChatText.MaxTitleLength)
+            return ApiResults.Error(StatusCodes.Status400BadRequest,
+                $"Назва — до {ChatText.MaxTitleLength} символів.");
 
-        await storage.SaveChatAsync(chat);
-
-        return Results.Ok(new
+        // UpdateChatAsync, а не Get + Save: інакше перейменування могло б затерти повідомлення,
+        // яке агент дописав у цю розмову між нашим читанням і записом
+        var chat = await storage.UpdateChatAsync(id, c =>
         {
-            id = chat.Id,
-            title = chat.Title,
-            updatedAt = chat.UpdatedAt
+            c.Title = title;
+            c.UpdatedAt = DateTime.UtcNow;
         });
+
+        return chat == null ? ApiResults.ChatNotFound() : Results.Ok(ChatSummary.From(chat));
     }
 }
 
 public class RenameRequest
 {
-    public string Title { get; set; } = string.Empty;
+    public string? Title { get; set; }
 }

@@ -14,8 +14,9 @@ public class Endpoint : IEndpoint
 
     private static async Task<IResult> HandleAsync(string id, ChatStorage storage)
     {
-        await storage.DeleteChatAsync(id);
+        // Разом із розмовою видаляються і її фото з data/uploads (сторінка це обіцяє користувачу)
+        var deleted = await storage.DeleteChatAsync(id);
 
-        return Results.Ok();
+        return deleted ? Results.NoContent() : ApiResults.ChatNotFound();
     }
 }

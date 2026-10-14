@@ -13,10 +13,12 @@ public class Endpoint : IEndpoint
         app.MapPost("/api/chats", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(ChatStorage storage)
+    private static async Task<IResult> HandleAsync(ChatStorage storage, ChatBusyTracker busy)
     {
         var newChat = new ChatSession();
         await storage.SaveChatAsync(newChat);
-        return Results.Ok(newChat);
+
+        // 201 Created + Location — стандартна відповідь на створення ресурсу
+        return Results.Created($"/api/chats/{newChat.Id}", ApiResults.ChatDetails(newChat, busy));
     }
 }
