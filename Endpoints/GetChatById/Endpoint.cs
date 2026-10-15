@@ -12,24 +12,12 @@ public class Endpoint : IEndpoint
         app.MapGet("/api/chats/{id}", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(string id, ChatStorage storage)
+    private static async Task<IResult> HandleAsync(string id, ChatStorage storage, ChatBusyTracker busy)
     {
         var chat = await storage.GetChatAsync(id);
+        if (chat == null) return ApiResults.ChatNotFound();
 
-        if (chat == null)
-        {
-            return Results.NotFound(new { error = "Розмову не знайдено" });
-        }
-
-        var response = new
-        {
-            id = chat.Id,
-            title = chat.Title,
-            messages = chat.Messages,
-            createdAt = chat.CreatedAt,
-            busy = false
-        };
-
-        return Results.Ok(response);
+        // busy = true → після перезавантаження сторінка чекає відповідь агента (опитує кожні 2 с)
+        return Results.Ok(ApiResults.ChatDetails(chat, busy));
     }
 }

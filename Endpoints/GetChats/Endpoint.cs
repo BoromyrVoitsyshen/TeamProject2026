@@ -1,4 +1,5 @@
-﻿using AiChat.Api.Infrastructure;
+﻿using AiChat.Api.Domain;
+using AiChat.Api.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -16,14 +17,7 @@ public class Endpoint : IEndpoint
     {
         var chats = await storage.GetAllChatsAsync();
 
-        var summary = chats.Select(c => new
-        {
-            id = c.Id,
-            title = c.Title,
-            createdAt = c.CreatedAt,
-            updatedAt = c.UpdatedAt
-        });
-
-        return Results.Ok(summary);
+        // preview потрібен панелі зліва; без нього там скрізь «Без повідомлень»
+        return Results.Ok(chats.Select(ChatSummary.From));
     }
 }
