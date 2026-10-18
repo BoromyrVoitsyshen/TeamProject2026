@@ -6,6 +6,9 @@
 /// </summary>
 public class AgentOptions
 {
+    public string Endpoint {get; set;} = "";
+    public string Model {get; set;} = "";
+    public string SystemPromptPath {get; set;} = "Agent/Prompts/SystemPrompt.txt";
     public const string SectionName = "Agent";
 
     public int TimeoutSeconds { get; set; } = 120;

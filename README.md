@@ -28,9 +28,38 @@ The backend fully supports the agreed API contracts. You don't need to change an
 ---
 
 ## For the AI engineer (AI integration)
-
-Right now, real artificial intelligence is **not connected**. A hardcoded stub replies instead. Your task is to replace it with a call to a real model (for example, via Semantic Kernel, the official SDKs from OpenAI / Anthropic / Google, or custom HTTP requests to local Python services).
-
+Right now a stub (StubChatAgent) replies instead of a real model.
+All AI code lives in the Agent/ folder — endpoints don't need to be changed.
+### AI module (Agent/)
+| File | Purpose |
+|---|---|
+| IChatAgent.cs | The only entry point to the model: ReplyAsync(history, ct) → reply text |
+| StubChatAgent.cs | Stub for development without an API key |
+| AgentReplyRunner.cs | Shared logic for POST /messages and POST /reply: timeout, 502 on error, saving the reply |
+| AgentOptions.cs | The Agent config section (timeout, key, model) |
+| Prompts/system-prompt.md | The bot's system prompt (car service) |
+### How to connect a model
+1. Create a class that implements IChatAgent.
+2. In Program.cs, replace StubChatAgent with it:
+   builder.Services.AddSingleton<IChatAgent, YourAgent>();
+### Already implemented — no need to redo
+- Timeout Agent:TimeoutSeconds (120 s), not tied to closing the tab.
+- An exception or empty reply → 502, the page shows "Try again" (POST /api/chats/{id}/reply).
+- One agent reply per conversation at a time (409), the page polls busy.
+- History: the whole conversation is passed to ReplyAsync; the last element is the new user message.
+- Photos: URL /uploads/x.png → path on disk via ChatStorage.TryGetUploadPath.
+### Configuration
+| Key | Default | Where to set it |
+|---|---|---|
+| Agent:TimeoutSeconds | 120 | appsettings.json |
+| Agent:Endpoint | — | appsettings.json |
+| Agent:Model | — | appsettings.json |
+| Agent:ApiKey | — | user-secrets / env only, never in git |
+# Locally
+dotnet user-secrets set "Agent:ApiKey" "<key>"
+# Docker
+docker run -e Agent__ApiKey=<key> ...
+Provider and model choice: see docs/ai/model-selection.md (MECH-51).
 ### Where to write code:
 Your main entry point is the file:
 `Endpoints/SendMessage/Endpoint.cs` (or the corresponding feature folder).
@@ -50,7 +79,7 @@ Your main entry point is the file:
 * `Infrastructure/` — file system work (`ChatStorage.cs`).
 * `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`).
 * `data/` — generated automatically. It holds the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
-
+* `Agent/` — AI module: the `IChatAgent interface`, the stub, `AgentReplyRunner`, configuration and prompts.
 ## Data and DB
 While the project is at the prototype stage, all conversations are stored in plain JSON files in the `data/chats/` folder. No database needs to be set up. When the project scales, we will replace `ChatStorage` with Entity Framework Core without changes to the controller logic.
 
