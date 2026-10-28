@@ -6,7 +6,7 @@ The project is built on the principles of **Vertical Slice Architecture** (each 
 
 ## How to run (for the whole team)
 
-1. Make sure you have the [.NET 8 SDK](https://dotnet.microsoft.com/download) installed (or a newer version).
+1. Make sure you have the [.NET 10 SDK](https://dotnet.microsoft.com/download) installed (the project targets `net10.0`).
 2. Open the project in Visual Studio / Rider or use the terminal:
 
     dotnet run
@@ -27,19 +27,43 @@ The backend fully supports the agreed API contracts. You don't need to change an
 
 ---
 
-## For the AI engineer (AI integration)
+## AI (OpenRouter)
 
-Right now, real artificial intelligence is **not connected**. A hardcoded stub replies instead. Your task is to replace it with a call to a real model (for example, via Semantic Kernel, the official SDKs from OpenAI / Anthropic / Google, or custom HTTP requests to local Python services).
+Replies come from models on [OpenRouter](https://openrouter.ai/docs) — one API for many providers. Without a key the site still works with a stub (`StubChatAgent`), so you can run it without your own key.
 
-### Where to write code:
-Your main entry point is the file:
-`Endpoints/SendMessage/Endpoint.cs` (or the corresponding feature folder).
+### Connect your key (once per machine)
 
-### What to keep in mind:
-1. **Current implementation:** Right now the method accepts a message, saves it and instantly generates a fake reply (`role: "assistant"`).
-2. **Asynchrony and timeouts:** Since generating an AI reply can take a long time (up to 1–2 minutes), keeping the HTTP request open is not always safe. Consider moving the model call into a background process (`IHostedService` or `BackgroundWorker`) while the backend immediately returns a status code to the front end (the front end can poll the server for status).
-3. **Images:** Images arrive as `multipart/form-data`, and the backend already saves them to disk. You will need to convert these saved files to `Base64` (or another format required by your model's API) before sending the prompt.
-4. **Conversation context:** The history of the whole chat is already available in the `chat.Messages` object. It is enough to pass it to the model to preserve context.
+1. Create a key at https://openrouter.ai/settings/keys.
+2. In the project folder run:
+
+    dotnet user-secrets set "Agent:ApiKey" "sk-or-v1-..."
+
+3. `dotnet run` — the console prints `Chat agent: OpenRouter, models: ...` and, a moment later, either `Agent:Models checked: ...` or a warning about a model.
+
+If the settings are wrong (for example, more than 3 models), the app does not start and prints `Hosting failed to start` with the reason.
+
+**Never** put the key in `appsettings.json`, `wwwroot/` or a commit. In Docker pass it as the environment variable `Agent__ApiKey`.
+
+### Settings (`appsettings.json`, section `Agent`)
+
+| Setting | Default | Meaning |
+|---|---|---|
+| `Models` | `nvidia/nemotron-3.5-super-vl:free`, then `openrouter/free` | Chat models in priority order; OpenRouter falls back to the next one. OpenRouter accepts **at most 3** (otherwise HTTP 400 `'models' array must have 3 items or fewer`), use only chat models (not `embed`/`rerank`) and only `:free` ones, or a fallback may be billed. |
+| `MaxHistoryMessages` | 20 | How many recent messages are sent to the model |
+| `MaxTokens` | 1500 | Maximum reply length, including the model's hidden reasoning tokens |
+| `TimeoutSeconds` | 120 | After this the page shows "Try again" (HTTP 502) |
+| `CheckModelsOnStartup` | true | On startup, check `Models` against the OpenRouter model list (exists, replies with text, free) and print warnings. Set to `false` to work offline. |
+
+Free models allow 20 requests per minute and 50 per day for accounts that never bought credits (1000 per day after buying at least 10 credits). Free providers may log prompts, so do not send personal data.
+
+### Code
+
+* `Agent/IChatAgent.cs` — the only thing endpoints know about the model.
+* `Agent/OpenRouter/OpenRouterChatAgent.cs` — the HTTP call, history trimming, error handling.
+* `Agent/SystemPrompt.cs` — the assistant's role: cars only, short answers in Ukrainian.
+* `Agent/AgentReplyRunner.cs` — timeout, 502, saving the reply; shared by `/messages` and `/reply`.
+
+Photos are not sent to the model yet; it only sees a `[фото]` marker.
 
 ---
 
@@ -47,7 +71,8 @@ Your main entry point is the file:
 
 * `wwwroot/` — front-end static files.
 * `Domain/` — basic data models (`ChatSession`, `ChatMessage`).
-* `Infrastructure/` — file system work (`ChatStorage.cs`).
+* `Infrastructure/` — file system work (`ChatStorage.cs`), image checks, busy tracking.
+* `Agent/` — the AI model behind `IChatAgent` (OpenRouter or the stub).
 * `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`).
 * `data/` — generated automatically. It holds the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
 
