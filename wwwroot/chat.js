@@ -59,12 +59,35 @@ async function api(path, options = {}) {
   } catch {
     throw new ApiError(0, 'Немає зв’язку із сервером. Перевірте інтернет і спробуйте ще раз.');
   }
+  // Сесія закінчилась або користувач не входив — на сторінку входу, а після входу назад сюди
+  if (response.status === 401) return toLogin();
   const data = response.status === 204 ? null : await response.json().catch(() => null);
   if (!response.ok) {
     const fallback = response.status === 413 ? 'Файли завеликі для сервера.' : 'Сервер відповів помилкою. Спробуйте ще раз.';
     throw new ApiError(response.status, data?.error ?? fallback, data);
   }
   return data;
+}
+
+// Проміс, що ніколи не завершиться: сторінка вже йде на login.html, тож код, який чекав
+// на відповідь сервера, не повинен показувати помилок чи змінювати стан
+function toLogin() {
+  const next = location.pathname + location.search + location.hash;
+  location.replace(`login.html?next=${encodeURIComponent(next)}`);
+  return new Promise(() => {});
+}
+
+// ───────────── Акаунт ─────────────
+function showAccount(me) {
+  $('#accountEmail').textContent = me.email;
+  $('#accountEmail').title = me.email;
+  $('#account').hidden = false;
+}
+
+async function logout() {
+  // Чернетки живуть лише в пам'яті сторінки, тож перед виходом нічого прибирати не треба
+  await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+  location.replace('login.html');
 }
 
 // ───────────── Бічна панель ─────────────
@@ -989,4 +1012,6 @@ lightbox.addEventListener('close', () => lightboxImg.removeAttribute('src'));
 // ───────────── Запуск ─────────────
 input.maxLength = MAX_TEXT;
 syncDrawer();
-loadList().then(route);
+$('#logout').addEventListener('click', logout);
+// Спершу дізнаємось, хто увійшов (401 — одразу на сторінку входу), потім вантажимо розмови
+api('/auth/me').then(showAccount, () => {}).then(loadList).then(route);

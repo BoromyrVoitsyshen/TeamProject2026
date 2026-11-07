@@ -1,4 +1,6 @@
-﻿using AiChat.Api.Infrastructure;
+﻿using System.Security.Claims;
+using AiChat.Api.Infrastructure;
+using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -12,10 +14,10 @@ public class Endpoint : IEndpoint
         app.MapDelete("/api/chats/{id}", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(string id, ChatStorage storage)
+    private static async Task<IResult> HandleAsync(string id, ClaimsPrincipal user, ChatStorage storage)
     {
         // Разом із розмовою видаляються і її фото з data/uploads (сторінка це обіцяє користувачу)
-        var deleted = await storage.DeleteChatAsync(id);
+        var deleted = await storage.DeleteChatAsync(user.GetUserId(), id);
 
         return deleted ? Results.NoContent() : ApiResults.ChatNotFound();
     }

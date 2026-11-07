@@ -26,9 +26,9 @@ public class AgentReplyRunner(
     IHostApplicationLifetime lifetime,
     ILogger<AgentReplyRunner> logger)
 {
-    public async Task<ReplyResult> RunAsync(string chatId)
+    public async Task<ReplyResult> RunAsync(string userId, string chatId)
     {
-        var chat = await storage.GetChatAsync(chatId);
+        var chat = await storage.GetChatAsync(userId, chatId);
         if (chat == null) return new ReplyResult(ReplyStatus.ChatGone);
 
         var timeout = TimeSpan.FromSeconds(Math.Max(1, options.Value.TimeoutSeconds));
@@ -70,7 +70,7 @@ public class AgentReplyRunner(
         };
 
         // Перечитуємо розмову під замком: за ці секунди її могли перейменувати
-        var updated = await storage.UpdateChatAsync(chatId, c =>
+        var updated = await storage.UpdateChatAsync(userId, chatId, c =>
         {
             c.Messages.Add(assistantMessage);
             c.UpdatedAt = assistantMessage.CreatedAt;

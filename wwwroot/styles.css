@@ -590,6 +590,121 @@ button { cursor: pointer; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+/* ───────── Вхід і реєстрація ───────── */
+.auth-page main {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+}
+
+.auth-card {
+  width: min(100%, 24rem);
+  display: grid;
+  gap: 16px;
+  padding: 28px 24px 24px;
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.auth-title {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 650;
+  letter-spacing: -.01em;
+}
+
+/* Перемикач «Увійти / Створити акаунт» */
+.auth-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 14px;
+  background: var(--bg);
+}
+.auth-switch button {
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .9375rem;
+  font-weight: 600;
+  transition: background-color .15s, color .15s;
+}
+.auth-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+
+.auth-field { display: grid; gap: 6px; font-size: .9375rem; font-weight: 600; }
+.auth-field input {
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg);
+  font-weight: 400;
+}
+.auth-field input:focus-visible { outline-offset: 0; border-color: transparent; }
+.auth-hint { color: var(--muted); font-size: .8125rem; font-weight: 400; }
+
+.auth-remember { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9375rem; }
+.auth-remember input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.auth-error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgb(220 50 50 / .12);
+  color: var(--ink);
+  font-size: .9375rem;
+}
+
+/* Головна дія — жовта, як «Почати розмову» і «Надіслати» */
+.auth-submit {
+  padding: 12px 16px;
+  border: 0;
+  border-radius: 14px 14px 4px 14px;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-weight: 650;
+  transition: background-color .15s, transform .15s;
+}
+.auth-submit:hover { background: var(--accent-hover); }
+.auth-submit:active { transform: scale(.98); }
+.auth-submit:disabled { opacity: .6; cursor: progress; }
+
+/* Акаунт унизу бічної панелі чату */
+.account {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 4px 0 14px;
+  border-top: 1px solid var(--line);
+}
+.account-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-logout {
+  flex: none;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 600;
+  transition: background-color .15s, color .15s;
+}
+.account-logout:hover { background: var(--hover); color: var(--ink); }
+
 @media (max-width: 600px) {
   .messages { padding-inline: 12px; }
   .composer { padding-inline: 10px; }

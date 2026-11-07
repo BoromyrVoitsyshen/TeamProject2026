@@ -67,17 +67,40 @@ Photos are not sent to the model yet; it only sees a `[фото]` marker.
 
 ---
 
+## Accounts and sign-in
+
+Every user has an account (email + password) and sees only their own chats and photos.
+
+* **How it works:** ASP.NET Core Identity stores users in SQLite (`data/app.db`, created automatically on first run). After sign-in the server sets an `HttpOnly`, `SameSite=Strict` cookie (`aichat.auth`, 14 days, renewed while you use the site). The page never sees or stores the session itself.
+* **Pages:** `login.html` (sign in / create account). Any `/api` call that returns **401** sends the page to `login.html?next=...` and back after sign-in.
+* **Rules:** password of at least 8 characters; 5 wrong passwords lock the account for 5 minutes (HTTP 429).
+* **Everything requires sign-in by default** (fallback authorization policy). A new endpoint is private unless marked `.AllowAnonymous()`.
+* **Per-user data:** chats in `data/chats/<userId>/`, photos in `data/uploads/<userId>/`. Photos are served by an endpoint (`GET /uploads/{file}`), not as static files, so a photo URL is useless to anyone else.
+* **Cookie encryption keys** live in `data/keys/`. In Docker mount a volume at `/app/data`, otherwise everybody is signed out and all chats are lost when the container is recreated.
+* Chats created before sign-in existed (files directly in `data/chats/`) are not shown to anyone. Delete them by hand if you still have them.
+
+### API
+
+| Request | Body | Result |
+|---|---|---|
+| `POST /api/auth/register` | `{ "email", "password" }` | 201 `{ id, email }` and signed in; 400 invalid email/password; 409 email taken |
+| `POST /api/auth/login` | `{ "email", "password", "rememberMe" }` | 200 `{ id, email }`; 401 wrong email or password; 429 locked out |
+| `POST /api/auth/logout` | — | 204 |
+| `GET /api/auth/me` | — | 200 `{ id, email }` or 401 |
+
+---
+
 ## Project structure (for the backend)
 
 * `wwwroot/` — front-end static files.
 * `Domain/` — basic data models (`ChatSession`, `ChatMessage`).
-* `Infrastructure/` — file system work (`ChatStorage.cs`), image checks, busy tracking.
+* `Infrastructure/` — file system work (`ChatStorage.cs`), image checks, busy tracking, database (`AppDbContext`) and sign-in setup (`Auth/`).
 * `Agent/` — the AI model behind `IChatAgent` (OpenRouter or the stub).
 * `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`).
 * `data/` — generated automatically. It holds the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
 
 ## Data and DB
-While the project is at the prototype stage, all conversations are stored in plain JSON files in the `data/chats/` folder. No database needs to be set up. When the project scales, we will replace `ChatStorage` with Entity Framework Core without changes to the controller logic.
+Users are stored in SQLite (`data/app.db`); conversations are still plain JSON files in `data/chats/<userId>/`. Nothing needs to be installed: the database file is created on first run. When the project scales, we will replace `ChatStorage` with Entity Framework Core without changes to the controller logic.
 
 ## Design link
 https://www.figma.com/design/g8swP7duhrvI3IWAdLCoYh/CiteDesign?m=auto&t=N4wkvVdnlqKdQ9WJ-1

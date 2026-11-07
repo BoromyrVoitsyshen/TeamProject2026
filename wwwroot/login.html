@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="uk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#edf0f4" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#13161d" media="(prefers-color-scheme: dark)">
+  <title>Вхід</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ffc21a' d='M12 5h8a10 10 0 0 1 10 10v9a3 3 0 0 1-3 3H12A10 10 0 0 1 2 17v-2A10 10 0 0 1 12 5z'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400..700&display=swap">
+  <link rel="stylesheet" href="styles.css">
+  <script src="login.js" defer></script>
+</head>
+<body class="auth-page">
+  <main>
+    <form class="auth-card" id="authForm" novalidate>
+      <h1 class="auth-title" id="authTitle">Вхід</h1>
+
+      <div class="auth-switch" role="group" aria-label="Що зробити">
+        <button type="button" id="modeLogin" aria-pressed="true">Увійти</button>
+        <button type="button" id="modeRegister" aria-pressed="false">Створити акаунт</button>
+      </div>
+
+      <label class="auth-field">
+        <span>Email</span>
+        <input id="email" name="email" type="email" autocomplete="username" inputmode="email" required>
+      </label>
+
+      <label class="auth-field">
+        <span>Пароль</span>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+        <small class="auth-hint" id="passwordHint" hidden>Щонайменше 8 символів</small>
+      </label>
+
+      <label class="auth-remember" id="rememberRow">
+        <input id="remember" type="checkbox" checked>
+        <span>Запам'ятати мене</span>
+      </label>
+
+      <p class="auth-error" id="authError" role="alert" hidden></p>
+
+      <button class="auth-submit" id="submit" type="submit">Увійти</button>
+    </form>
+  </main>
+</body>
+</html>

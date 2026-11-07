@@ -1,6 +1,8 @@
 ﻿using AiChat.Api.Agent;
 using AiChat.Api.Domain;
+using System.Security.Claims;
 using AiChat.Api.Infrastructure;
+using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -17,11 +19,13 @@ public class Endpoint : IEndpoint
 
     private static async Task<IResult> HandleAsync(
         string id,
+        ClaimsPrincipal user,
         ChatStorage storage,
         ChatBusyTracker busy,
         AgentReplyRunner runner)
     {
-        var chat = await storage.GetChatAsync(id);
+        var userId = user.GetUserId();
+        var chat = await storage.GetChatAsync(userId, id);
         if (chat == null) return ApiResults.ChatNotFound();
 
         if (!busy.TryBegin(id))
@@ -33,7 +37,7 @@ public class Endpoint : IEndpoint
         {
             // Перевіряємо вже ПІСЛЯ TryBegin: інакше між перевіркою і TryBegin інша вкладка могла б
             // встигнути отримати відповідь, і ми б відповіли двічі
-            chat = await storage.GetChatAsync(id);
+            chat = await storage.GetChatAsync(userId, id);
             if (chat == null) return ApiResults.ChatNotFound();
 
             if (chat.Messages.LastOrDefault()?.Role != ChatMessage.UserRole)
@@ -41,7 +45,7 @@ public class Endpoint : IEndpoint
                 return ApiResults.Error(StatusCodes.Status409Conflict, "Агент уже відповів у цій розмові.");
             }
 
-            var result = await runner.RunAsync(id);
+            var result = await runner.RunAsync(userId, id);
 
             return result.Status switch
             {

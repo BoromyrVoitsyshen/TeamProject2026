@@ -6,6 +6,12 @@ public class ChatSession
 
     public string Id { get; set; } = Guid.NewGuid().ToString("N");
     public string Title { get; set; } = DefaultTitle;
+
+    /// <summary>
+    /// Id власника (AppUser.Id). Доступ і так обмежує папка користувача в ChatStorage; поле потрібне,
+    /// щоб файл був самодостатнім — знадобиться при переїзді чатів у базу даних.
+    /// </summary>
+    public string OwnerId { get; set; } = string.Empty;
     public List<ChatMessage> Messages { get; set; } = new();
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;

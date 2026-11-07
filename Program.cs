@@ -4,10 +4,9 @@ using AiChat.Api.Agent.OpenRouter;
 using AiChat.Api.Domain;
 using AiChat.Api.Endpoints;
 using AiChat.Api.Infrastructure;
+using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpLogging;
-using Microsoft.AspNetCore.StaticFiles;
-using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -19,6 +18,9 @@ builder.Services.Configure<FormOptions>(form => form.MultipartBodyLengthLimit = 
 
 builder.Services.AddSingleton<ChatStorage>();
 builder.Services.AddSingleton<ChatBusyTracker>();
+
+// Акаунти: ASP.NET Identity + cookie, користувачі в SQLite (data/app.db). Деталі — Infrastructure/Auth/AuthSetup.cs
+builder.AddAppAuth().AddAppDatabase(builder);
 
 // Налаштування агента: прив'язка до секції "Agent" + перевірка при старті.
 // ValidateOnStart — без нього валідатор спрацював би лише при першому повідомленні в чаті,
@@ -78,6 +80,8 @@ builder.Services.AddHttpLogging(logging =>
 
 var app = builder.Build();
 
+await app.InitializeDatabaseAsync();
+
 // Пишемо в лог, коли застосунок уже стартував, тобто ПІСЛЯ перевірки ValidateOnStart
 app.Lifetime.ApplicationStarted.Register(() =>
 {
@@ -96,26 +100,16 @@ app.Use(async (context, next) =>
     await next();
 });
 
+// Статичні файли (html, css, js) — до авторизації: сторінка входу має відкриватися без входу.
+// У них немає нічого секретного; дані приходять лише з /api, а там уже діє вхід
 app.UseDefaultFiles();
 app.UseStaticFiles();
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+// Фото з /uploads тепер теж ендпоінт (Endpoints/GetUpload) — під авторизацією, лише власні фото
 app.MapEndpoints();
-
-// /uploads віддає лише фото — навіть якщо на диску якось опиниться .html чи .svg, браузер його не отримає
-var imageTypes = new FileExtensionContentTypeProvider(new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-{
-    [".jpg"] = "image/jpeg",
-    [".jpeg"] = "image/jpeg",
-    [".png"] = "image/png",
-    [".gif"] = "image/gif",
-    [".webp"] = "image/webp"
-});
-
-app.UseStaticFiles(new StaticFileOptions
-{
-    FileProvider = new PhysicalFileProvider(app.Services.GetRequiredService<ChatStorage>().UploadsDirectory),
-    RequestPath = "/uploads",
-    ContentTypeProvider = imageTypes
-});
 
 app.Run();
 

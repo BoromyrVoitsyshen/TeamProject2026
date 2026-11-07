@@ -1,6 +1,8 @@
 ﻿using AiChat.Api.Agent;
 using AiChat.Api.Domain;
+using System.Security.Claims;
 using AiChat.Api.Infrastructure;
+using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -12,7 +14,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        // TODO: прибрати DisableAntiforgery, коли з'явиться вхід через cookie
+        // Antiforgery-токен тут не перевіряємо: від CSRF захищає cookie входу з SameSite=Strict
+        // (браузер не надішле її з запитом, який почався на чужому сайті). Див. ConfigureApplicationCookie у Program.cs
         app.MapPost("/api/chats/{chatId}/messages", HandleAsync).DisableAntiforgery();
     }
 
@@ -21,13 +24,15 @@ public class Endpoint : IEndpoint
         [FromForm(Name = "id")] string? messageId,
         [FromForm(Name = "text")] string? text,
         IFormFileCollection images,
+        ClaimsPrincipal user,
         ChatStorage storage,
         ChatBusyTracker busy,
         AgentReplyRunner runner,
         CancellationToken ct)
     {
         // 1. Перевіряємо все, що можна, ще до того, як щось записати на диск
-        if (!ChatStorage.IsValidId(chatId)) return ApiResults.ChatNotFound();
+        var userId = user.GetUserId();
+        if (await storage.GetChatAsync(userId, chatId) == null) return ApiResults.ChatNotFound();
 
         text = text?.Trim() ?? string.Empty;
         var validation = await ValidateAsync(text, images, ct);
@@ -43,7 +48,7 @@ public class Endpoint : IEndpoint
         {
             // 3. Зберігаємо повідомлення користувача ДО виклику агента: модель може думати хвилину-дві,
             //    і якщо щось впаде, повідомлення не загубиться (сторінка покаже «Спробувати ще раз»)
-            var imageUrls = await storage.SaveImagesAsync(validation.Images, ct);
+            var imageUrls = await storage.SaveImagesAsync(userId, validation.Images, ct);
 
             var userMessage = new ChatMessage
             {
@@ -55,7 +60,7 @@ public class Endpoint : IEndpoint
                 CreatedAt = DateTime.UtcNow
             };
 
-            var chat = await storage.UpdateChatAsync(chatId, c =>
+            var chat = await storage.UpdateChatAsync(userId, chatId, c =>
             {
                 if (c.Messages.Count == 0 && c.Title == ChatSession.DefaultTitle)
                 {
@@ -68,12 +73,12 @@ public class Endpoint : IEndpoint
 
             if (chat == null)
             {
-                storage.DeleteImages(imageUrls);
+                storage.DeleteImages(userId, imageUrls);
                 return ApiResults.ChatNotFound();
             }
 
             // 4. Агент
-            var result = await runner.RunAsync(chatId);
+            var result = await runner.RunAsync(userId, chatId);
 
             return result.Status switch
             {

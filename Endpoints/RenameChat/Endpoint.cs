@@ -1,5 +1,7 @@
 ﻿using AiChat.Api.Domain;
+using System.Security.Claims;
 using AiChat.Api.Infrastructure;
+using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -13,7 +15,7 @@ public class Endpoint : IEndpoint
         app.MapPatch("/api/chats/{id}", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(string id, RenameRequest? request, ChatStorage storage)
+    private static async Task<IResult> HandleAsync(string id, RenameRequest? request, ClaimsPrincipal user, ChatStorage storage)
     {
         if (!ChatStorage.IsValidId(id)) return ApiResults.ChatNotFound();
 
@@ -27,7 +29,7 @@ public class Endpoint : IEndpoint
 
         // UpdateChatAsync, а не Get + Save: інакше перейменування могло б затерти повідомлення,
         // яке агент дописав у цю розмову між нашим читанням і записом
-        var chat = await storage.UpdateChatAsync(id, c =>
+        var chat = await storage.UpdateChatAsync(user.GetUserId(), id, c =>
         {
             c.Title = title;
             c.UpdatedAt = DateTime.UtcNow;

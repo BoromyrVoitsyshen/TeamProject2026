@@ -5,16 +5,20 @@ using AiChat.Api.Domain;
 namespace AiChat.Api.Infrastructure;
 
 /// <summary>
-/// Єдиний клас, який торкається диска. Розмова — один JSON-файл data/chats/&lt;id&gt;.json,
-/// фото — data/uploads/&lt;guid&gt;.&lt;ext&gt;. Зареєстрований як singleton, тому блокування спільні для всіх запитів.
+/// Єдиний клас, який торкається диска. Дані кожного користувача лежать в окремій папці:
+/// розмова — data/chats/&lt;userId&gt;/&lt;chatId&gt;.json, фото — data/uploads/&lt;userId&gt;/&lt;guid&gt;.&lt;ext&gt;.
+/// Тому кожен метод приймає userId: прочитати чи змінити чужу розмову неможливо в принципі —
+/// шлях до файлу будується з id того, хто увійшов, а не з того, що прийшло в запиті.
+/// Зареєстрований як singleton, тому блокування спільні для всіх запитів.
 /// </summary>
 public class ChatStorage
 {
     private readonly string _chatsDirectory;
+    private readonly string _uploadsDirectory;
     private readonly ILogger<ChatStorage> _logger;
 
     // Один семафор на розмову: читання-зміна-запис однієї розмови йдуть по черзі,
-    // а різні розмови не заважають одна одній.
+    // а різні розмови не заважають одна одній. id розмов — Guid, тож між користувачами вони не перетинаються.
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new();
 
     private readonly JsonSerializerOptions _jsonOptions = new()
@@ -28,18 +32,13 @@ public class ChatStorage
     {
         _logger = logger;
 
-        // Storage:DataPath — щоб у Docker можна було змонтувати volume, напр. /app/data
-        var dataPath = configuration["Storage:DataPath"] ?? "data";
-        var baseDir = Path.GetFullPath(dataPath, environment.ContentRootPath);
-
-        _chatsDirectory = Path.Combine(baseDir, "chats");
-        UploadsDirectory = Path.Combine(baseDir, "uploads");
+        var dataDir = DataPaths.GetDataDirectory(configuration, environment);
+        _chatsDirectory = Path.Combine(dataDir, "chats");
+        _uploadsDirectory = Path.Combine(dataDir, "uploads");
 
         Directory.CreateDirectory(_chatsDirectory);
-        Directory.CreateDirectory(UploadsDirectory);
+        Directory.CreateDirectory(_uploadsDirectory);
     }
-
-    public string UploadsDirectory { get; }
 
     /// <summary>
     /// id розмови приходить з URL і стає частиною шляху до файлу. Приймаємо лише 32 hex-символи
@@ -48,17 +47,23 @@ public class ChatStorage
     public static bool IsValidId(string? id) =>
         id is { Length: 32 } && Guid.TryParseExact(id, "N", out _);
 
-    public async Task<ChatSession?> GetChatAsync(string id)
+    /// <summary>id користувача від ASP.NET Identity — Guid у форматі "D" (з дефісами). Теж стає частиною шляху.</summary>
+    public static bool IsValidUserId(string? userId) =>
+        userId is { Length: 36 } && Guid.TryParseExact(userId, "D", out _);
+
+    public async Task<ChatSession?> GetChatAsync(string userId, string id)
     {
-        if (!IsValidId(id)) return null;
-        return await ReadChatFileAsync(ChatPath(id));
+        if (!IsValidUserId(userId) || !IsValidId(id)) return null;
+        return await ReadChatFileAsync(ChatPath(userId, id));
     }
 
-    public async Task<List<ChatSession>> GetAllChatsAsync()
+    public async Task<List<ChatSession>> GetAllChatsAsync(string userId)
     {
         var chats = new List<ChatSession>();
+        var directory = UserChatsDirectory(userId);
+        if (!Directory.Exists(directory)) return chats;
 
-        foreach (var file in Directory.EnumerateFiles(_chatsDirectory, "*.json"))
+        foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
         {
             // Один пошкоджений файл не повинен ламати весь список (раніше — 500 на GET /api/chats)
             var chat = await ReadChatFileAsync(file);
@@ -68,15 +73,19 @@ public class ChatStorage
         return chats.OrderByDescending(c => c.UpdatedAt).ToList();
     }
 
-    public async Task SaveChatAsync(ChatSession chat)
+    /// <summary>Зберігає нову розмову. Власник — <paramref name="userId"/>, незалежно від того, що записано в chat.</summary>
+    public async Task SaveChatAsync(string userId, ChatSession chat)
     {
+        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id '{userId}'", nameof(userId));
         if (!IsValidId(chat.Id)) throw new ArgumentException($"Invalid chat id '{chat.Id}'", nameof(chat));
+
+        chat.OwnerId = userId;
 
         var gate = GetLock(chat.Id);
         await gate.WaitAsync();
         try
         {
-            await WriteChatFileAsync(chat);
+            await WriteChatFileAsync(userId, chat);
         }
         finally
         {
@@ -88,21 +97,21 @@ public class ChatStorage
     /// Атомарно змінює розмову: під замком читає свіжу версію з диска, викликає <paramref name="mutate"/>
     /// і записує результат. Так два запити до однієї розмови (повідомлення + перейменування,
     /// відповідь агента + видалення) не перезапишуть зміни один одного.
-    /// Повертає null, якщо розмови немає.
+    /// Повертає null, якщо в цього користувача такої розмови немає.
     /// </summary>
-    public async Task<ChatSession?> UpdateChatAsync(string id, Action<ChatSession> mutate)
+    public async Task<ChatSession?> UpdateChatAsync(string userId, string id, Action<ChatSession> mutate)
     {
-        if (!IsValidId(id)) return null;
+        if (!IsValidUserId(userId) || !IsValidId(id)) return null;
 
         var gate = GetLock(id);
         await gate.WaitAsync();
         try
         {
-            var chat = await ReadChatFileAsync(ChatPath(id));
+            var chat = await ReadChatFileAsync(ChatPath(userId, id));
             if (chat == null) return null;
 
             mutate(chat);
-            await WriteChatFileAsync(chat);
+            await WriteChatFileAsync(userId, chat);
             return chat;
         }
         finally
@@ -111,16 +120,16 @@ public class ChatStorage
         }
     }
 
-    /// <summary>Видаляє розмову і всі її фото. false — розмови не було.</summary>
-    public async Task<bool> DeleteChatAsync(string id)
+    /// <summary>Видаляє розмову і всі її фото. false — у цього користувача такої розмови не було.</summary>
+    public async Task<bool> DeleteChatAsync(string userId, string id)
     {
-        if (!IsValidId(id)) return false;
+        if (!IsValidUserId(userId) || !IsValidId(id)) return false;
 
         var gate = GetLock(id);
         await gate.WaitAsync();
         try
         {
-            var path = ChatPath(id);
+            var path = ChatPath(userId, id);
             var chat = await ReadChatFileAsync(path);
             if (chat == null && !File.Exists(path)) return false;
 
@@ -128,7 +137,7 @@ public class ChatStorage
 
             if (chat != null)
             {
-                DeleteImages(chat.Messages.SelectMany(m => m.Images));
+                DeleteImages(userId, chat.Messages.SelectMany(m => m.Images));
             }
 
             return true;
@@ -141,10 +150,14 @@ public class ChatStorage
         }
     }
 
-    /// <summary>Зберігає вже перевірені фото (див. ImageValidator) під випадковими іменами.</summary>
-    public async Task<List<string>> SaveImagesAsync(IEnumerable<ValidatedImage> images, CancellationToken ct = default)
+    /// <summary>Зберігає вже перевірені фото (див. ImageValidator) під випадковими іменами в папку користувача.</summary>
+    public async Task<List<string>> SaveImagesAsync(string userId, IEnumerable<ValidatedImage> images,
+        CancellationToken ct = default)
     {
+        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id '{userId}'", nameof(userId));
+
         var imageUrls = new List<string>();
+        var directory = Directory.CreateDirectory(UserUploadsDirectory(userId)).FullName;
 
         try
         {
@@ -153,29 +166,30 @@ public class ChatStorage
                 // Розширення обираємо самі за вмістом файлу, а не беремо з імені від клієнта:
                 // інакше x.html збережеться як .html і /uploads віддасть його як сторінку нашого сайту.
                 var fileName = $"{Guid.NewGuid():N}{image.Extension}";
-                var filePath = Path.Combine(UploadsDirectory, fileName);
+                var filePath = Path.Combine(directory, fileName);
 
                 await using var stream = new FileStream(filePath, FileMode.CreateNew);
                 await image.File.CopyToAsync(stream, ct);
 
+                // URL без userId: адреса фото не розкриває, чиє воно. Власника визначає cookie того, хто просить.
                 imageUrls.Add($"/uploads/{fileName}");
             }
         }
         catch
         {
             // Не лишаємо на диску половину фото з невдалого запиту
-            DeleteImages(imageUrls);
+            DeleteImages(userId, imageUrls);
             throw;
         }
 
         return imageUrls;
     }
 
-    public void DeleteImages(IEnumerable<string> urls)
+    public void DeleteImages(string userId, IEnumerable<string> urls)
     {
         foreach (var url in urls)
         {
-            if (!TryGetUploadPath(url, out var path)) continue;
+            if (!TryGetUploadPath(userId, url, out var path)) continue;
 
             try
             {
@@ -189,12 +203,14 @@ public class ChatStorage
     }
 
     /// <summary>
-    /// Перетворює URL фото ("/uploads/abc.png") на шлях на диску. Знадобиться й AI-частині,
-    /// щоб прочитати фото і передати моделі (Base64).
+    /// Перетворює URL фото ("/uploads/abc.png") на шлях у папці цього користувача.
+    /// Чуже фото так не знайти: воно лежить в іншій папці. Знадобиться й AI-частині (Base64 для моделі).
     /// </summary>
-    public bool TryGetUploadPath(string url, out string path)
+    public bool TryGetUploadPath(string userId, string url, out string path)
     {
         path = string.Empty;
+        if (!IsValidUserId(userId)) return false;
+
         const string prefix = "/uploads/";
         if (!url.StartsWith(prefix, StringComparison.Ordinal)) return false;
 
@@ -202,11 +218,15 @@ public class ChatStorage
         // Лише ім'я файлу, без жодних каталогів — захист від "/uploads/../chats/x.json"
         if (fileName.Length == 0 || fileName != Path.GetFileName(fileName) || fileName.Contains('\\')) return false;
 
-        path = Path.Combine(UploadsDirectory, fileName);
+        path = Path.Combine(UserUploadsDirectory(userId), fileName);
         return true;
     }
 
-    private string ChatPath(string id) => Path.Combine(_chatsDirectory, $"{id}.json");
+    private string UserChatsDirectory(string userId) => Path.Combine(_chatsDirectory, userId);
+
+    private string UserUploadsDirectory(string userId) => Path.Combine(_uploadsDirectory, userId);
+
+    private string ChatPath(string userId, string id) => Path.Combine(UserChatsDirectory(userId), $"{id}.json");
 
     private SemaphoreSlim GetLock(string id) => _locks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
 
@@ -220,8 +240,9 @@ public class ChatStorage
                 FileShare.ReadWrite | FileShare.Delete, bufferSize: 4096, useAsync: true);
             return await JsonSerializer.DeserializeAsync<ChatSession>(stream, _jsonOptions);
         }
-        catch (FileNotFoundException)
+        catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
         {
+            // DirectoryNotFound — користувач ще не створив жодної розмови
             return null;
         }
         catch (JsonException ex)
@@ -231,11 +252,13 @@ public class ChatStorage
         }
     }
 
-    private async Task WriteChatFileAsync(ChatSession chat)
+    private async Task WriteChatFileAsync(string userId, ChatSession chat)
     {
+        Directory.CreateDirectory(UserChatsDirectory(userId));
+
         // Спершу пишемо у тимчасовий файл, потім підміняємо: якщо процес впаде посеред запису,
         // старий файл лишиться цілим, а не обрізаним JSON
-        var path = ChatPath(chat.Id);
+        var path = ChatPath(userId, chat.Id);
         var tempPath = path + ".tmp";
 
         await using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None,
