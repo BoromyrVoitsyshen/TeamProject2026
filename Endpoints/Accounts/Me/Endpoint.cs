@@ -1,5 +1,5 @@
 using AiChat.Api.Accounts;
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 
 namespace AiChat.Api.Endpoints.Accounts.Me;
 

@@ -1,4 +1,4 @@
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 using Microsoft.EntityFrameworkCore;
 
 namespace AiChat.Api.Scheduling;

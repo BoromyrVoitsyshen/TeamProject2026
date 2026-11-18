@@ -1,4 +1,4 @@
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 using AiChat.Api.Scheduling;
 
 namespace AiChat.Api.Endpoints.MasterCabinet.GetMyProfile;

@@ -3,7 +3,7 @@ using AiChat.Api.Accounts;
 using AiChat.Api.Agent;
 using AiChat.Api.Agent.OpenRouter;
 using AiChat.Api.Catalog;
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 using AiChat.Api.Domain;
 using AiChat.Api.Endpoints;
 using AiChat.Api.Infrastructure;
@@ -25,7 +25,7 @@ builder.Services.Configure<FormOptions>(form => form.MultipartBodyLengthLimit = 
 builder.Services.AddSingleton<ChatStorage>();
 builder.Services.AddSingleton<ChatBusyTracker>();
 
-// Каталог майстрів, записи, відгуки й акаунти — база SQLite (data/app.db), див. папку Data/.
+// Каталог майстрів, записи, відгуки й акаунти — база SQLite (data/app.db), див. папку Persistence/.
 // Розмови з AI-помічником поки лишаються в JSON-файлах (ChatStorage).
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseSqlite($"Data Source={DatabaseSetup.DatabasePath(builder.Configuration, builder.Environment)}"));

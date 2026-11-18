@@ -1,4 +1,4 @@
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 
 namespace AiChat.Api.Scheduling;
 

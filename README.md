@@ -130,13 +130,13 @@ Errors always come as `{ "error": "text" }`.
 
 ### Database
 
-The database is SQLite through Entity Framework Core (`Data/AppDbContext.cs`, tables in `Data/Entities.cs`). The file is `data/app.db` (folder from `Storage:DataPath`, already in `.gitignore`).
+The database is SQLite through Entity Framework Core (`Persistence/AppDbContext.cs`, tables in `Persistence/Entities.cs`). The file is `data/app.db` (folder from `Storage:DataPath`, already in `.gitignore`).
 
 The database is created with `EnsureCreated`, which does **not** update an existing database. After changing the models, delete `data/app.db` (the demo data will be created again). When we start keeping real data, switch to migrations:
 
     dotnet tool install --global dotnet-ef
     dotnet ef migrations add Initial
-    # and in Data/DatabaseSetup.cs replace EnsureCreatedAsync() with MigrateAsync()
+    # and in Persistence/DatabaseSetup.cs replace EnsureCreatedAsync() with MigrateAsync()
 
 In Docker, mount a volume at `/app/data`, otherwise accounts and bookings disappear with the container.
 
@@ -146,7 +146,7 @@ In Docker, mount a volume at `/app/data`, otherwise accounts and bookings disapp
 
 * `wwwroot/` — front-end static files.
 * `Domain/` — chat data models (`ChatSession`, `ChatMessage`).
-* `Data/` — the SQLite database: entities, `AppDbContext`, creation and demo data.
+* `Persistence/` — the SQLite database: entities, `AppDbContext`, creation and demo data. (Not `Data/`: on Windows that is the same folder as the runtime `data/`, which is in `.gitignore`.)
 * `Accounts/` — password hashing, cookie sign-in, current user, rate limit.
 * `Catalog/` — masters for the catalogue (`MasterCatalog`) and review rules.
 * `Scheduling/` — local time, schedule generation, booking locks.

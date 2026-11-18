@@ -1,6 +1,6 @@
 using AiChat.Api.Accounts;
 using AiChat.Api.Catalog;
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 using AiChat.Api.Scheduling;
 using Microsoft.EntityFrameworkCore;
 

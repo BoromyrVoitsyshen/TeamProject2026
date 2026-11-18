@@ -1,5 +1,5 @@
 using System.Security.Claims;
-using AiChat.Api.Data;
+using AiChat.Api.Persistence;
 using AiChat.Api.Endpoints;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
