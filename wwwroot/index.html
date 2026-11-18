@@ -6,16 +6,105 @@
   <meta name="color-scheme" content="light dark">
   <meta name="theme-color" content="#edf0f4" media="(prefers-color-scheme: light)">
   <meta name="theme-color" content="#13161d" media="(prefers-color-scheme: dark)">
-  <title>Чат</title>
+  <title>Майстри для вашого авто — Mechs</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath fill='%23ffc21a' d='M12 5h8a10 10 0 0 1 10 10v9a3 3 0 0 1-3 3H12A10 10 0 0 1 2 17v-2A10 10 0 0 1 12 5z'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@600&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400..700&family=Literata:opsz,wght@7..72,500..600&display=swap">
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="site.css">
+  <script src="app.js" defer></script>
+  <script src="catalog.js" defer></script>
 </head>
-<body class="landing">
-  <main>
-    <a class="start" href="chat.html">Почати розмову</a>
+<body class="site">
+  <header class="site-header">
+    <div class="wrap header-row">
+      <a class="brand" href="./" aria-label="Mechs — на головну">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M12 5h8a10 10 0 0 1 10 10v9a3 3 0 0 1-3 3H12A10 10 0 0 1 2 17v-2A10 10 0 0 1 12 5z"/></svg>
+        Mechs
+      </a>
+      <nav class="site-nav" aria-label="Розділи">
+        <a href="./" aria-current="page">Майстри</a>
+        <a href="chat.html">AI-помічник</a>
+      </nav>
+      <div class="auth" id="auth"></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="hero">
+      <div>
+        <h1>Майстри для вашого авто</h1>
+        <p class="lead">Порівняйте ціни, стаж і відгуки — і запишіться на вільний час одразу на сайті.</p>
+      </div>
+      <a class="ai-hint" href="chat.html">
+        <span class="ai-hint-icon" aria-hidden="true"></span>
+        <span><strong>Не знаєте, що зламалося?</strong> Опишіть симптоми AI-помічнику — він підкаже, до якого майстра йти.</span>
+      </a>
+    </section>
+
+    <div class="catalog">
+      <details class="filters" id="filtersBox">
+        <summary class="filters-toggle">Фільтри <span class="filters-count" id="filtersCount" hidden></span></summary>
+        <form class="filters-form" id="filters" role="search" aria-label="Фільтри майстрів">
+          <div class="field">
+            <label for="fService">Послуга</label>
+            <select id="fService" name="service"><option value="">Усі послуги</option></select>
+          </div>
+          <div class="field">
+            <label for="fCity">Місто</label>
+            <select id="fCity" name="city"><option value="">Усі міста</option></select>
+          </div>
+          <div class="field">
+            <label for="fQuery">Адреса або ім'я</label>
+            <input id="fQuery" name="q" type="search" placeholder="Напр. Перемоги" autocomplete="off">
+          </div>
+          <fieldset class="field">
+            <legend id="priceLegend">Ціна, грн</legend>
+            <div class="range">
+              <input id="fMinPrice" name="minPrice" type="number" inputmode="numeric" min="0" step="50" placeholder="від" aria-label="Ціна від, грн">
+              <span aria-hidden="true">—</span>
+              <input id="fMaxPrice" name="maxPrice" type="number" inputmode="numeric" min="0" step="50" placeholder="до" aria-label="Ціна до, грн">
+            </div>
+          </fieldset>
+          <div class="field">
+            <label for="fExperience">Стаж</label>
+            <select id="fExperience" name="minExperience">
+              <option value="">Будь-який</option>
+              <option value="1">від 1 року</option>
+              <option value="3">від 3 років</option>
+              <option value="5">від 5 років</option>
+              <option value="10">від 10 років</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fRating">Відгуки</label>
+            <select id="fRating" name="minRating">
+              <option value="">Будь-який рейтинг</option>
+              <option value="4">★ 4 і вище</option>
+              <option value="4.5">★ 4,5 і вище</option>
+            </select>
+          </div>
+          <button class="btn btn-quiet btn-block" id="resetFilters" type="reset">Скинути фільтри</button>
+        </form>
+      </details>
+
+      <section class="results" aria-labelledby="resultsTitle">
+        <div class="results-bar">
+          <h2 class="results-title" id="resultsTitle" aria-live="polite">Завантаження…</h2>
+          <label class="sort">
+            <span>Сортувати:</span>
+            <select id="fSort" name="sort" form="filters">
+              <option value="rating">за рейтингом</option>
+              <option value="reviews">за кількістю відгуків</option>
+              <option value="price">спершу дешевші</option>
+              <option value="experience">за стажем</option>
+            </select>
+          </label>
+        </div>
+        <div class="master-list" id="masterList" aria-busy="true"></div>
+      </section>
+    </div>
   </main>
 </body>
 </html>

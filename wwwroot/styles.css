@@ -193,6 +193,17 @@ button { cursor: pointer; }
   transition: background-color .15s;
 }
 .new-chat:hover { background: var(--bg); }
+
+/* Посилання з чату назад до каталогу майстрів */
+.to-masters {
+  align-self: flex-start;
+  padding: 2px 4px;
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.to-masters:hover { color: var(--ink); }
 .new-chat .i { width: 20px; height: 20px; }
 
 .chat-list {

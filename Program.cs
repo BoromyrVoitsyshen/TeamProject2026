@@ -1,12 +1,17 @@
 ﻿using System.Net.Http.Headers;
+using AiChat.Api.Accounts;
 using AiChat.Api.Agent;
 using AiChat.Api.Agent.OpenRouter;
+using AiChat.Api.Catalog;
+using AiChat.Api.Data;
 using AiChat.Api.Domain;
 using AiChat.Api.Endpoints;
 using AiChat.Api.Infrastructure;
+using AiChat.Api.Scheduling;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpLogging;
 using Microsoft.AspNetCore.StaticFiles;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Options;
 
@@ -19,6 +24,15 @@ builder.Services.Configure<FormOptions>(form => form.MultipartBodyLengthLimit = 
 
 builder.Services.AddSingleton<ChatStorage>();
 builder.Services.AddSingleton<ChatBusyTracker>();
+
+// Каталог майстрів, записи, відгуки й акаунти — база SQLite (data/app.db), див. папку Data/.
+// Розмови з AI-помічником поки лишаються в JSON-файлах (ChatStorage).
+builder.Services.AddDbContext<AppDbContext>(options =>
+    options.UseSqlite($"Data Source={DatabaseSetup.DatabasePath(builder.Configuration, builder.Environment)}"));
+builder.Services.AddScoped<MasterCatalog>();
+builder.Services.AddSingleton<BookingClock>();
+builder.Services.AddSingleton<BookingLocks>();
+builder.Services.AddAccounts();
 
 // Налаштування агента: прив'язка до секції "Agent" + перевірка при старті.
 // ValidateOnStart — без нього валідатор спрацював би лише при першому повідомленні в чаті,
@@ -78,6 +92,9 @@ builder.Services.AddHttpLogging(logging =>
 
 var app = builder.Build();
 
+// Створює базу при першому запуску, заповнює перелік послуг і (якщо ввімкнено) демо-дані
+await app.InitializeDatabaseAsync();
+
 // Пишемо в лог, коли застосунок уже стартував, тобто ПІСЛЯ перевірки ValidateOnStart
 app.Lifetime.ApplicationStarted.Register(() =>
 {
@@ -98,6 +115,9 @@ app.Use(async (context, next) =>
 
 app.UseDefaultFiles();
 app.UseStaticFiles();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseRateLimiter();
 app.MapEndpoints();
 
 // /uploads віддає лише фото — навіть якщо на диску якось опиниться .html чи .svg, браузер його не отримає
