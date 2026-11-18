@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace AiChat.Api.Agent.OpenRouter;
 
@@ -18,7 +19,24 @@ public record OpenRouterRequest
 
     [JsonPropertyName("temperature")]
     public double? Temperature { get; init; }
+
+    /// <summary>
+    /// Structured output: модель має повернути JSON за схемою. null — звичайна текстова відповідь.
+    /// https://openrouter.ai/docs/guides/features/structured-outputs
+    /// </summary>
+    [JsonPropertyName("response_format")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public JsonElement? ResponseFormat { get; init; }
+
+    [JsonPropertyName("provider")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public OpenRouterProviderPreferences? Provider { get; init; }
 }
+
+/// <param name="RequireParameters">true — OpenRouter веде запит лише до тих провайдерів, які підтримують
+/// усі передані параметри (наприклад, response_format), а не ігнорує їх.</param>
+public record OpenRouterProviderPreferences(
+    [property: JsonPropertyName("require_parameters")] bool RequireParameters);
 
 public record OpenRouterMessage(
     [property: JsonPropertyName("role")] string Role,

@@ -1,4 +1,6 @@
-﻿using AiChat.Api.Domain;
+using AiChat.Api.Domain;
+using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
@@ -13,9 +15,9 @@ public class Endpoint : IEndpoint
         app.MapGet("/api/chats", HandleAsync);
     }
 
-    private static async Task<IResult> HandleAsync(ChatStorage storage)
+    private static async Task<IResult> HandleAsync(ClaimsPrincipal user, ChatStorage storage)
     {
-        var chats = await storage.GetAllChatsAsync();
+        var chats = await storage.GetAllChatsAsync(user.RequireUserId());
 
         // preview потрібен панелі зліва; без нього там скрізь «Без повідомлень»
         return Results.Ok(chats.Select(ChatSummary.From));

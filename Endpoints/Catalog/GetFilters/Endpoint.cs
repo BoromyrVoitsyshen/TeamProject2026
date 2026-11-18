@@ -10,7 +10,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/catalog", HandleAsync);
+        app.MapGet("/api/catalog", HandleAsync)
+            .AllowAnonymous(); // публічне: доступне гостям (див. FallbackPolicy в Accounts/AuthSetup.cs)
     }
 
     private static async Task<IResult> HandleAsync(MasterCatalog catalog, CancellationToken ct)

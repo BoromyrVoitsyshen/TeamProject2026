@@ -22,6 +22,10 @@ public class AgentOptionsValidator : IValidateOptions<AgentOptions>
             errors.Add($"Agent:MaxTokens must be greater than 0 (now {options.MaxTokens}).");
         if (options.MaxHistoryMessages <= 0)
             errors.Add($"Agent:MaxHistoryMessages must be greater than 0 (now {options.MaxHistoryMessages}).");
+        if (options.FormMaxTokens <= 0)
+            errors.Add($"Agent:FormMaxTokens must be greater than 0 (now {options.FormMaxTokens}).");
+        if (options.FormMaxMessages <= 0)
+            errors.Add($"Agent:FormMaxMessages must be greater than 0 (now {options.FormMaxMessages}).");
         if (options.Temperature is < 0 or > 2)
             errors.Add($"Agent:Temperature must be between 0 and 2 (now {options.Temperature}).");
 

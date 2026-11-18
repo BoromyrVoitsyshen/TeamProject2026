@@ -16,6 +16,13 @@ public static class CurrentUser
     public static int? GetUserId(this ClaimsPrincipal principal) =>
         int.TryParse(principal.FindFirstValue(ClaimTypes.NameIdentifier), out var id) ? id : null;
 
+    /// <summary>
+    /// Id для ендпоінтів, які вимагають входу (чати AI-помічника, фото): їх і так не відкрити без cookie
+    /// (FallbackPolicy в AuthSetup), тож відсутній id — помилка налаштувань, а не запиту.
+    /// </summary>
+    public static int RequireUserId(this ClaimsPrincipal principal) =>
+        principal.GetUserId() ?? throw new InvalidOperationException("Authenticated user has no numeric NameIdentifier claim.");
+
     /// <summary>Користувач із бази або null, якщо гість (чи cookie від акаунта, якого вже немає).</summary>
     public static async Task<User?> LoadAsync(HttpContext http, AppDbContext db, CancellationToken ct)
     {

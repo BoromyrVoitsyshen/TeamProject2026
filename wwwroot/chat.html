@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Commissioner:wght@400..700&family=Literata:opsz,wght@7..72,400..600&display=swap">
   <link rel="stylesheet" href="styles.css">
   <script src="chat.js" defer></script>
+  <script src="form.js" defer></script>
 </head>
 <body class="chat-page">
   <!-- Згорнуту панель ставимо ще до першого малювання, щоб вона не блимала при завантаженні -->
@@ -26,6 +27,10 @@
         Нова розмова
       </button>
       <nav class="chat-list" id="chatList" aria-label="Збережені розмови"></nav>
+      <div class="account" id="account" hidden>
+        <span class="account-email" id="accountEmail"></span>
+        <button class="account-logout" id="logout" type="button">Вийти</button>
+      </div>
     </aside>
     <div class="backdrop" id="backdrop"></div>
 
@@ -35,6 +40,9 @@
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></svg>
         </button>
         <h1 class="chat-title" id="chatTitle">Нова розмова</h1>
+        <button class="icon-btn" id="summaryBtn" type="button" aria-label="Підсумок консультації" title="Підсумок консультації">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V3h6v1M9 10h6M9 14h6M9 18h3"/></svg>
+        </button>
         <button class="icon-btn" id="newChatTop" type="button" aria-label="Нова розмова">
           <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-6"/><path d="M18.4 2.6a2 2 0 0 1 2.9 2.9L12 14.8l-4 1 1-4Z"/></svg>
         </button>
@@ -67,6 +75,87 @@
     <button class="icon-btn lightbox-close" type="button" aria-label="Закрити">
       <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
     </button>
+  </dialog>
+
+  <!-- Підсумок консультації (MECH-86): модель заповнює форму за розмовою, користувач може виправити -->
+  <dialog class="form-dialog" id="formDialog" aria-labelledby="formTitle">
+    <form class="cf" id="consultForm" method="dialog" novalidate>
+      <header class="cf-head">
+        <h2 id="formTitle">Підсумок консультації</h2>
+        <button class="icon-btn" id="formClose" type="button" aria-label="Закрити">
+          <svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+      </header>
+
+      <div class="cf-body">
+        <p class="cf-status" id="formStatus" role="status"></p>
+        <p class="cf-message" id="formMessage" role="alert" hidden></p>
+        <p class="cf-note" id="formStale" hidden>Після підсумку в розмові з'явилися нові повідомлення. Натисніть «Оновити з розмови», щоб урахувати їх.</p>
+
+        <div id="formFields">
+          <fieldset>
+            <legend>Авто</legend>
+            <div class="cf-grid">
+              <label>Марка<input id="f-make" maxlength="60" autocomplete="off"></label>
+              <label>Модель<input id="f-model" maxlength="60" autocomplete="off"></label>
+              <label>Рік<input id="f-year" type="number" inputmode="numeric" min="1950" max="2100"></label>
+              <label>Двигун<input id="f-engine" maxlength="60" placeholder="напр. 2.0 TDI" autocomplete="off"></label>
+              <label>Паливо<input id="f-fuel" maxlength="30" list="fuelList" autocomplete="off"></label>
+              <label>Пробіг, км<input id="f-mileage" type="number" inputmode="numeric" min="0" step="1000"></label>
+            </div>
+            <datalist id="fuelList"><option value="Бензин"><option value="Дизель"><option value="Газ"><option value="Гібрид"><option value="Електро"></datalist>
+          </fieldset>
+
+          <fieldset>
+            <legend>Проблема</legend>
+            <label>Суть<textarea id="f-problem" rows="2" maxlength="500"></textarea></label>
+            <label>Симптоми <small>кожен з нового рядка</small><textarea id="f-symptoms" rows="3"></textarea></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Оцінка</legend>
+            <label>Можливі причини <small>кожна з нового рядка</small><textarea id="f-causes" rows="3"></textarea></label>
+            <div class="cf-grid">
+              <label>Терміновість
+                <select id="f-urgency">
+                  <option value="">Невідомо</option>
+                  <option value="low">Низька — можна планово</option>
+                  <option value="medium">Середня — найближчим часом</option>
+                  <option value="high">Висока — якнайшвидше</option>
+                  <option value="critical">Критична — не їхати</option>
+                </select>
+              </label>
+              <label>Чи можна їхати
+                <select id="f-safe">
+                  <option value="">Невідомо</option>
+                  <option value="true">Так</option>
+                  <option value="false">Ні</option>
+                </select>
+              </label>
+            </div>
+            <label>Пояснення щодо безпеки<input id="f-safetyNote" maxlength="500"></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Що робити</legend>
+            <label>Рекомендовані дії <small>кожна з нового рядка</small><textarea id="f-actions" rows="3"></textarea></label>
+            <label>Тип робіт <small>напр. Діагностика, Гальма, Ходова і підвіска</small><textarea id="f-workTypes" rows="2"></textarea></label>
+          </fieldset>
+
+          <fieldset>
+            <legend>Чого бракує</legend>
+            <label class="cf-plain"><span class="visually-hidden">Чого бракує</span><textarea id="f-missing" rows="2"></textarea></label>
+          </fieldset>
+        </div>
+      </div>
+
+      <footer class="cf-actions">
+        <button class="cf-btn" id="formFill" type="button">Заповнити з розмови</button>
+        <span class="cf-spacer"></span>
+        <button class="cf-btn" id="formCopy" type="button">Копіювати</button>
+        <button class="cf-btn cf-primary" id="formSave" type="button">Зберегти</button>
+      </footer>
+    </form>
   </dialog>
 
   <div class="toast" id="toast" role="status" aria-live="polite"></div>

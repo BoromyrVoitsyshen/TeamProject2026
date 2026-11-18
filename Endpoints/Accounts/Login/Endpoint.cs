@@ -10,7 +10,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/auth/login", HandleAsync).RequireRateLimiting(AuthLimits.Policy);
+        app.MapPost("/api/auth/login", HandleAsync).RequireRateLimiting(AuthLimits.Policy)
+            .AllowAnonymous(); // публічне: доступне гостям (див. FallbackPolicy в Accounts/AuthSetup.cs)
     }
 
     private static async Task<IResult> HandleAsync(LoginRequest request, HttpContext http, AppDbContext db, CancellationToken ct)

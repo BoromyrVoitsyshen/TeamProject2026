@@ -31,6 +31,12 @@ public class AgentOptions
 
     public double Temperature { get; set; } = 0.5;
 
+    /// <summary>Ліміт токенів для заповнення підсумку (MECH-86): JSON форми + можливе «міркування» моделі.</summary>
+    public int FormMaxTokens { get; set; } = 2000;
+
+    /// <summary>Скільки останніх повідомлень розмови бачить модель, коли заповнює підсумок.</summary>
+    public int FormMaxMessages { get; set; } = 40;
+
     /// <summary>Необов'язкові заголовки для OpenRouter: сайт і назва застосунку (лише ASCII).</summary>
     public string? SiteUrl { get; set; }
 

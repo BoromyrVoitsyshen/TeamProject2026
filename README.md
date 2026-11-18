@@ -16,6 +16,8 @@ The project is built on the principles of **Vertical Slice Architecture** (each 
 
 On the first run the server creates the database `data/app.db` and fills it with demo masters, clients, bookings and reviews. Nothing needs to be installed: SQLite is a single file.
 
+> **Upgrading from the build with ASP.NET Identity (November 7)?** That build created a different `data/app.db`. Stop the app and delete the `data` folder once (`app.db`, `chats`, `uploads`, `keys`); it is recreated with the demo data on the next run. Old chats belonged to the old accounts and cannot be moved over.
+
 ---
 
 ## For the Front-end developer
@@ -25,7 +27,7 @@ The backend fully supports the agreed API contracts. You don't need to change an
 * **Where your files are:** The whole client part (HTML, CSS, JS) now lives in the `wwwroot/` folder. The server serves it automatically on startup.
 * **API:** All routes (`GET /api/chats`, `POST /api/chats/:id/messages`, etc.) work as expected.
 * **Fix:** The `updatedAt` field, which was missing in the original models, has been added to the conversation objects, so sorting and time display in the sidebar now work correctly.
-* **Files:** Uploaded photos are stored locally and served at `/uploads/...`.
+* **Files:** Uploaded photos are stored per user and served at `/uploads/...` only to their owner.
 
 ---
 
@@ -61,11 +63,37 @@ Free models allow 20 requests per minute and 50 per day for accounts that never 
 ### Code
 
 * `Agent/IChatAgent.cs` — the only thing endpoints know about the model.
-* `Agent/OpenRouter/OpenRouterChatAgent.cs` — the HTTP call, history trimming, error handling.
+* `Agent/OpenRouter/OpenRouterClient.cs` — the HTTP call and error handling, shared by the chat and the summary form.
+* `Agent/OpenRouter/OpenRouterChatAgent.cs` — chat replies, history trimming.
 * `Agent/SystemPrompt.cs` — the assistant's role: cars only, short answers in Ukrainian.
 * `Agent/AgentReplyRunner.cs` — timeout, 502, saving the reply; shared by `/messages` and `/reply`.
+* `Agent/OpenRouter/OpenRouterFormFiller.cs`, `Agent/ConsultationFormService.cs` — the consultation summary (below).
 
-Photos are not sent to the model yet; it only sees a `[фото]` marker.
+Photos are not sent to the model (the team decided against it); it only sees a `[фото]` marker.
+
+### AI chats belong to their user
+
+The chat (`/chat.html`) requires sign-in with the same account as the rest of the site (client or master). Every user sees only their own chats and photos:
+
+* chats are stored in `data/chats/<userId>/`, photos in `data/uploads/<userId>/`; the folder comes from the sign-in cookie, not from the request, so another user's chat or photo returns 404;
+* photos are served by an endpoint (`GET /uploads/{file}`), not as static files, so a photo URL is useless to anyone else;
+* if the session has expired, the chat page sends the user to `login.html?next=…` and back.
+
+### Consultation summary (MECH-86)
+
+At the end of a chat the user presses the clipboard button in the top bar, and the AI fills in a summary form from the conversation: car (make, model, year, engine, fuel, mileage), problem and symptoms, possible causes, urgency, whether it is safe to drive, recommended actions, type of work and what is still missing. The user can correct it, save it and copy it as text for the master.
+
+* **The AI must not invent facts.** If the chat does not mention the year, the field stays empty and goes to "what is missing". Rules and the JSON schema: `Agent/FormPrompt.cs` (keep it in sync with `Domain/ConsultationForm.cs`).
+* **Structured output first.** The request asks OpenRouter for JSON by schema (`response_format`, only providers that support it). If that is rejected or the reply is not valid JSON, there is one retry where only the instructions ask for JSON. 401/429/timeouts are not retried.
+* **Neither the AI nor the user is trusted:** both go through `ConsultationForm.Normalize()` (length limits, no empty or duplicate items, impossible year or mileage become empty).
+* The form is stored inside the chat file (`chat.form`) and deleted with the chat. `basedOnMessages` lets the page warn that the chat has new messages since the summary.
+* Settings: `Agent:FormMaxTokens` (2000), `Agent:FormMaxMessages` (40). Without an API key a stub fills only the problem from the first message.
+
+| Request | Result |
+|---|---|
+| `GET /api/chats/{id}/form` | 200 form, 204 not filled yet, 404 |
+| `POST /api/chats/{id}/form` | AI fills the form: 200 form; 400 no user messages yet; 409 already filling; 502 AI failed |
+| `PUT /api/chats/{id}/form` | Save the user's edits: 200 form (`editedByUser: true`); 400 invalid JSON |
 
 ---
 
@@ -108,6 +136,8 @@ Booking runs under a per-master lock (`Scheduling/BookingLocks.cs`): the chosen 
 * A review (1–5 stars, up to 1000 characters) can be left only by a client who has had a visit to that master, once per master.
 * A master appears in the catalogue only when the profile is published and has a city, an address, at least one service and one working day.
 * Passwords are stored as PBKDF2-SHA256 hashes; sign-in uses an HttpOnly cookie; login and registration are limited to 10 attempts per minute per IP.
+* **Everything requires sign-in by default** (fallback authorization policy in `Accounts/AuthSetup.cs`). The catalogue, sign-in and registration are marked `.AllowAnonymous()`; a new endpoint is private unless marked the same way.
+* The keys that encrypt the sign-in cookie are kept in `data/keys/` (next to the database), so a restarted Docker container does not sign everyone out.
 
 ### API
 
@@ -145,18 +175,18 @@ In Docker, mount a volume at `/app/data`, otherwise accounts and bookings disapp
 ## Project structure (for the backend)
 
 * `wwwroot/` — front-end static files.
-* `Domain/` — chat data models (`ChatSession`, `ChatMessage`).
+* `Domain/` — chat data models (`ChatSession`, `ChatMessage`, `ConsultationForm`).
 * `Persistence/` — the SQLite database: entities, `AppDbContext`, creation and demo data. (Not `Data/`: on Windows that is the same folder as the runtime `data/`, which is in `.gitignore`.)
 * `Accounts/` — password hashing, cookie sign-in, current user, rate limit.
 * `Catalog/` — masters for the catalogue (`MasterCatalog`) and review rules.
 * `Scheduling/` — local time, schedule generation, booking locks.
-* `Infrastructure/` — file system work (`ChatStorage.cs`), image checks, busy tracking.
+* `Infrastructure/` — file system work for AI chats (`ChatStorage.cs`, per user), image checks, busy tracking.
 * `Agent/` — the AI model behind `IChatAgent` (OpenRouter or the stub).
 * `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`); the catalogue slices are grouped in `Accounts/`, `Catalog/`, `Bookings/`, `Reviews/` and `MasterCabinet/`.
 * `data/` — generated automatically. It holds the database `app.db`, the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
 
 ## Data and DB
-Accounts, masters, bookings and reviews live in the SQLite database `data/app.db` (see "Database" above). Conversations with the AI assistant are still stored in plain JSON files in `data/chats/`; they can move to the same database later by replacing `ChatStorage`.
+Accounts, masters, bookings and reviews live in the SQLite database `data/app.db` (see "Database" above). Conversations with the AI assistant are still stored in plain JSON files in `data/chats/<userId>/`; they can move to the same database later by replacing `ChatStorage`.
 
 ## Design link
 https://www.figma.com/design/g8swP7duhrvI3IWAdLCoYh/CiteDesign?m=auto&t=N4wkvVdnlqKdQ9WJ-1

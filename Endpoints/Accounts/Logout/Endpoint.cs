@@ -6,7 +6,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapPost("/api/auth/logout", HandleAsync);
+        app.MapPost("/api/auth/logout", HandleAsync)
+            .AllowAnonymous(); // публічне: доступне гостям (див. FallbackPolicy в Accounts/AuthSetup.cs)
     }
 
     // Другий параметр потрібен: метод лише з HttpContext ASP.NET Core вважає RequestDelegate

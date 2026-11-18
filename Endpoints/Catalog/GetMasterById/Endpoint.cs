@@ -15,7 +15,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/masters/{id:int}", HandleAsync);
+        app.MapGet("/api/masters/{id:int}", HandleAsync)
+            .AllowAnonymous(); // публічне: доступне гостям (див. FallbackPolicy в Accounts/AuthSetup.cs)
     }
 
     private static async Task<IResult> HandleAsync(

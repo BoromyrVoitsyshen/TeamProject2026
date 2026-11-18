@@ -8,7 +8,8 @@ public class Endpoint : IEndpoint
 {
     public void MapEndpoint(IEndpointRouteBuilder app)
     {
-        app.MapGet("/api/auth/me", HandleAsync);
+        app.MapGet("/api/auth/me", HandleAsync)
+            .AllowAnonymous(); // публічне: доступне гостям (див. FallbackPolicy в Accounts/AuthSetup.cs)
     }
 
     private static async Task<IResult> HandleAsync(HttpContext http, AppDbContext db, CancellationToken ct)

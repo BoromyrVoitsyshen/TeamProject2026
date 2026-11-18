@@ -1,5 +1,6 @@
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Authorization;
 
 namespace AiChat.Api.Accounts;
 
@@ -26,19 +27,24 @@ public static class AuthSetup
                 options.SlidingExpiration = true;
 
                 // Це API: замість переходу на сторінку входу — просто 401/403, сторінка сама покаже, що робити
+                // Тіло { error } — щоб сторінки (зокрема чат) показали зрозуміле повідомлення
                 options.Events.OnRedirectToLogin = context =>
                 {
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    return Task.CompletedTask;
+                    return context.Response.WriteAsJsonAsync(new { error = "Увійдіть в акаунт." });
                 };
                 options.Events.OnRedirectToAccessDenied = context =>
                 {
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    return Task.CompletedTask;
+                    return context.Response.WriteAsJsonAsync(new { error = "Немає доступу." });
                 };
             });
 
-        services.AddAuthorization();
+        // Secure by default: ендпоінт без .AllowAnonymous() вимагає входу. Так нові ендпоінти (наприклад,
+        // чати AI-помічника) не стануть публічними випадково. Каталог, вхід і реєстрація позначені AllowAnonymous;
+        // на статичні сторінки (html, css, js) це не впливає — їх віддає UseStaticFiles ще до авторизації
+        services.AddAuthorizationBuilder()
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
 
         services.AddRateLimiter(limiter =>
         {
