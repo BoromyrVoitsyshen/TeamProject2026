@@ -1,6 +1,6 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -16,7 +16,7 @@ public class Endpoint : IEndpoint
 
     private static async Task<IResult> HandleAsync(string id, ClaimsPrincipal user, ChatStorage storage, ChatBusyTracker busy)
     {
-        var chat = await storage.GetChatAsync(user.GetUserId(), id);
+        var chat = await storage.GetChatAsync(user.RequireUserId(), id);
         if (chat == null) return ApiResults.ChatNotFound();
 
         // busy = true → після перезавантаження сторінка чекає відповідь агента (опитує кожні 2 с)

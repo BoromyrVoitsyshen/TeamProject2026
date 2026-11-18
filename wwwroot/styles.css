@@ -193,6 +193,17 @@ button { cursor: pointer; }
   transition: background-color .15s;
 }
 .new-chat:hover { background: var(--bg); }
+
+/* Посилання з чату назад до каталогу майстрів */
+.to-masters {
+  align-self: flex-start;
+  padding: 2px 4px;
+  color: var(--muted);
+  font-size: .875rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+.to-masters:hover { color: var(--ink); }
 .new-chat .i { width: 20px; height: 20px; }
 
 .chat-list {
@@ -590,90 +601,92 @@ button { cursor: pointer; }
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ───────── Вхід і реєстрація ───────── */
-.auth-page main {
-  min-height: 100vh;
-  min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 24px 16px;
-}
-
-.auth-card {
-  width: min(100%, 24rem);
-  display: grid;
-  gap: 16px;
-  padding: 28px 24px 24px;
+/* ───────── Підсумок консультації (MECH-86) ───────── */
+.form-dialog {
+  width: min(calc(100% - 32px), 44rem);
+  max-height: min(90vh, 52rem);
+  max-height: min(90dvh, 52rem);
+  padding: 0;
   border: 1px solid var(--line);
-  border-radius: 22px;
+  border-radius: 20px;
   background: var(--surface);
+  color: var(--ink);
   box-shadow: var(--shadow);
 }
+.form-dialog[open] { display: flex; }
+.form-dialog::backdrop { background: var(--scrim); }
 
-.auth-title {
-  margin: 0;
-  font-size: 1.5rem;
-  font-weight: 650;
-  letter-spacing: -.01em;
+.cf { display: flex; flex-direction: column; width: 100%; min-height: 0; }
+
+.cf-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 10px 20px;
+  border-bottom: 1px solid var(--line);
 }
+.cf-head h2 { flex: 1; margin: 0; font-size: 1.125rem; font-weight: 650; }
 
-/* Перемикач «Увійти / Створити акаунт» */
-.auth-switch {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px;
-  padding: 4px;
-  border-radius: 14px;
-  background: var(--bg);
-}
-.auth-switch button {
-  padding: 8px 10px;
-  border: 0;
-  border-radius: 10px;
-  background: transparent;
-  color: var(--muted);
-  font-size: .9375rem;
-  font-weight: 600;
-  transition: background-color .15s, color .15s;
-}
-.auth-switch button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgb(0 0 0 / .12); }
+.cf-body { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 20px 20px; overscroll-behavior: contain; }
+.cf[aria-busy="true"] .cf-body { opacity: .6; }
 
-.auth-field { display: grid; gap: 6px; font-size: .9375rem; font-weight: 600; }
-.auth-field input {
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: 12px;
-  background: var(--bg);
-  font-weight: 400;
-}
-.auth-field input:focus-visible { outline-offset: 0; border-color: transparent; }
-.auth-hint { color: var(--muted); font-size: .8125rem; font-weight: 400; }
-
-.auth-remember { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9375rem; }
-.auth-remember input { width: 18px; height: 18px; accent-color: var(--accent); }
-
-.auth-error {
-  margin: 0;
+.cf-status { margin: 0 0 12px; color: var(--muted); font-size: .9375rem; }
+.cf-note, .cf-message {
+  margin: 0 0 12px;
   padding: 10px 12px;
   border-radius: 12px;
-  background: rgb(220 50 50 / .12);
-  color: var(--ink);
+  background: rgb(255 194 26 / .18);
   font-size: .9375rem;
 }
+.cf-message.error { background: rgb(220 50 50 / .12); }
 
-/* Головна дія — жовта, як «Почати розмову» і «Надіслати» */
-.auth-submit {
-  padding: 12px 16px;
-  border: 0;
-  border-radius: 14px 14px 4px 14px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font-weight: 650;
-  transition: background-color .15s, transform .15s;
+.cf fieldset { margin: 0 0 14px; padding: 0; border: 0; display: grid; gap: 10px; }
+.cf legend { margin-bottom: 8px; padding: 0; font-weight: 650; }
+.cf label { display: grid; gap: 4px; color: var(--muted); font-size: .875rem; font-weight: 600; }
+.cf label small { font-weight: 400; }
+.cf input, .cf textarea, .cf select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg);
+  color: var(--ink);
+  font-size: .9375rem;
+  font-weight: 400;
 }
-.auth-submit:hover { background: var(--accent-hover); }
-.auth-submit:active { transform: scale(.98); }
-.auth-submit:disabled { opacity: .6; cursor: progress; }
+.cf textarea { resize: vertical; line-height: 1.45; }
+.cf-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr)); gap: 10px; }
+
+.cf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px calc(env(safe-area-inset-bottom) + 12px);
+  border-top: 1px solid var(--line);
+}
+.cf-spacer { flex: 1; }
+.cf-btn {
+  padding: 9px 14px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: transparent;
+  font-size: .9375rem;
+  font-weight: 600;
+  transition: background-color .15s;
+}
+.cf-btn:hover { background: var(--hover); }
+.cf-btn:disabled { opacity: .6; cursor: progress; }
+.cf-btn.cf-primary { border-color: transparent; background: var(--accent); color: var(--on-accent); }
+.cf-btn.cf-primary:hover { background: var(--accent-hover); }
+
+/* На телефоні — на весь екран */
+@media (max-width: 600px) {
+  .form-dialog { width: 100%; max-width: none; height: 100%; max-height: none; margin: 0; border: 0; border-radius: 0; }
+  .cf-head { padding-top: calc(env(safe-area-inset-top) + 10px); }
+  .cf-spacer { display: none; }
+  .cf-btn { flex: 1 1 auto; }
+}
 
 /* Акаунт унизу бічної панелі чату */
 .account {

@@ -1,8 +1,8 @@
-﻿using AiChat.Api.Agent;
+using AiChat.Api.Agent;
 using AiChat.Api.Domain;
 using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -24,7 +24,7 @@ public class Endpoint : IEndpoint
         ChatBusyTracker busy,
         AgentReplyRunner runner)
     {
-        var userId = user.GetUserId();
+        var userId = user.RequireUserId();
         var chat = await storage.GetChatAsync(userId, id);
         if (chat == null) return ApiResults.ChatNotFound();
 

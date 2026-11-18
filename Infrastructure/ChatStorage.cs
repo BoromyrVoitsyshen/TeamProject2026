@@ -1,4 +1,5 @@
-﻿using System.Collections.Concurrent;
+using System.Collections.Concurrent;
+using System.Globalization;
 using System.Text.Json;
 using AiChat.Api.Domain;
 
@@ -47,17 +48,16 @@ public class ChatStorage
     public static bool IsValidId(string? id) =>
         id is { Length: 32 } && Guid.TryParseExact(id, "N", out _);
 
-    /// <summary>id користувача від ASP.NET Identity — Guid у форматі "D" (з дефісами). Теж стає частиною шляху.</summary>
-    public static bool IsValidUserId(string? userId) =>
-        userId is { Length: 36 } && Guid.TryParseExact(userId, "D", out _);
+    /// <summary>id користувача з таблиці Users (Persistence/Entities.cs) — додатне число. Стає назвою папки.</summary>
+    public static bool IsValidUserId(int userId) => userId > 0;
 
-    public async Task<ChatSession?> GetChatAsync(string userId, string id)
+    public async Task<ChatSession?> GetChatAsync(int userId, string id)
     {
         if (!IsValidUserId(userId) || !IsValidId(id)) return null;
         return await ReadChatFileAsync(ChatPath(userId, id));
     }
 
-    public async Task<List<ChatSession>> GetAllChatsAsync(string userId)
+    public async Task<List<ChatSession>> GetAllChatsAsync(int userId)
     {
         var chats = new List<ChatSession>();
         var directory = UserChatsDirectory(userId);
@@ -74,9 +74,9 @@ public class ChatStorage
     }
 
     /// <summary>Зберігає нову розмову. Власник — <paramref name="userId"/>, незалежно від того, що записано в chat.</summary>
-    public async Task SaveChatAsync(string userId, ChatSession chat)
+    public async Task SaveChatAsync(int userId, ChatSession chat)
     {
-        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id '{userId}'", nameof(userId));
+        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id {userId}", nameof(userId));
         if (!IsValidId(chat.Id)) throw new ArgumentException($"Invalid chat id '{chat.Id}'", nameof(chat));
 
         chat.OwnerId = userId;
@@ -99,7 +99,7 @@ public class ChatStorage
     /// відповідь агента + видалення) не перезапишуть зміни один одного.
     /// Повертає null, якщо в цього користувача такої розмови немає.
     /// </summary>
-    public async Task<ChatSession?> UpdateChatAsync(string userId, string id, Action<ChatSession> mutate)
+    public async Task<ChatSession?> UpdateChatAsync(int userId, string id, Action<ChatSession> mutate)
     {
         if (!IsValidUserId(userId) || !IsValidId(id)) return null;
 
@@ -121,7 +121,7 @@ public class ChatStorage
     }
 
     /// <summary>Видаляє розмову і всі її фото. false — у цього користувача такої розмови не було.</summary>
-    public async Task<bool> DeleteChatAsync(string userId, string id)
+    public async Task<bool> DeleteChatAsync(int userId, string id)
     {
         if (!IsValidUserId(userId) || !IsValidId(id)) return false;
 
@@ -151,10 +151,10 @@ public class ChatStorage
     }
 
     /// <summary>Зберігає вже перевірені фото (див. ImageValidator) під випадковими іменами в папку користувача.</summary>
-    public async Task<List<string>> SaveImagesAsync(string userId, IEnumerable<ValidatedImage> images,
+    public async Task<List<string>> SaveImagesAsync(int userId, IEnumerable<ValidatedImage> images,
         CancellationToken ct = default)
     {
-        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id '{userId}'", nameof(userId));
+        if (!IsValidUserId(userId)) throw new ArgumentException($"Invalid user id {userId}", nameof(userId));
 
         var imageUrls = new List<string>();
         var directory = Directory.CreateDirectory(UserUploadsDirectory(userId)).FullName;
@@ -185,7 +185,7 @@ public class ChatStorage
         return imageUrls;
     }
 
-    public void DeleteImages(string userId, IEnumerable<string> urls)
+    public void DeleteImages(int userId, IEnumerable<string> urls)
     {
         foreach (var url in urls)
         {
@@ -206,7 +206,7 @@ public class ChatStorage
     /// Перетворює URL фото ("/uploads/abc.png") на шлях у папці цього користувача.
     /// Чуже фото так не знайти: воно лежить в іншій папці. Знадобиться й AI-частині (Base64 для моделі).
     /// </summary>
-    public bool TryGetUploadPath(string userId, string url, out string path)
+    public bool TryGetUploadPath(int userId, string url, out string path)
     {
         path = string.Empty;
         if (!IsValidUserId(userId)) return false;
@@ -222,11 +222,13 @@ public class ChatStorage
         return true;
     }
 
-    private string UserChatsDirectory(string userId) => Path.Combine(_chatsDirectory, userId);
+    private string UserChatsDirectory(int userId) =>
+        Path.Combine(_chatsDirectory, userId.ToString(CultureInfo.InvariantCulture));
 
-    private string UserUploadsDirectory(string userId) => Path.Combine(_uploadsDirectory, userId);
+    private string UserUploadsDirectory(int userId) =>
+        Path.Combine(_uploadsDirectory, userId.ToString(CultureInfo.InvariantCulture));
 
-    private string ChatPath(string userId, string id) => Path.Combine(UserChatsDirectory(userId), $"{id}.json");
+    private string ChatPath(int userId, string id) => Path.Combine(UserChatsDirectory(userId), $"{id}.json");
 
     private SemaphoreSlim GetLock(string id) => _locks.GetOrAdd(id, _ => new SemaphoreSlim(1, 1));
 
@@ -252,7 +254,7 @@ public class ChatStorage
         }
     }
 
-    private async Task WriteChatFileAsync(string userId, ChatSession chat)
+    private async Task WriteChatFileAsync(int userId, ChatSession chat)
     {
         Directory.CreateDirectory(UserChatsDirectory(userId));
 

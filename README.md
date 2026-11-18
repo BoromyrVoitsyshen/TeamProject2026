@@ -1,6 +1,6 @@
-# AI Chat - .NET Backend
+# Mechs — masters catalogue and AI chat (.NET)
 
-This repository contains the backend for our team's AI chat project. The original Node.js concept was rewritten in **C# (ASP.NET Core)** for better scalability, typing and easier extension in the future.
+This repository contains the site for our team project: a catalogue of car masters with online booking and reviews, plus an AI assistant chat. The original Node.js concept was rewritten in **C# (ASP.NET Core)** for better scalability, typing and easier extension in the future.
 
 The project is built on the principles of **Vertical Slice Architecture** (each feature has its own isolated folder with its logic) using **Minimal APIs**.
 
@@ -12,7 +12,11 @@ The project is built on the principles of **Vertical Slice Architecture** (each 
     dotnet run
 
 3. The server will start and the console will show the address (usually `https://localhost:7106` or `http://localhost:5079`).
-4. Open this address in your browser — the front end will load automatically.
+4. Open this address in your browser — the masters catalogue opens; the AI chat is at `/chat.html`.
+
+On the first run the server creates the database `data/app.db` and fills it with demo masters, clients, bookings and reviews. Nothing needs to be installed: SQLite is a single file.
+
+> **Upgrading from the build with ASP.NET Identity (November 7)?** That build created a different `data/app.db`. Stop the app and delete the `data` folder once (`app.db`, `chats`, `uploads`, `keys`); it is recreated with the demo data on the next run. Old chats belonged to the old accounts and cannot be moved over.
 
 ---
 
@@ -23,7 +27,7 @@ The backend fully supports the agreed API contracts. You don't need to change an
 * **Where your files are:** The whole client part (HTML, CSS, JS) now lives in the `wwwroot/` folder. The server serves it automatically on startup.
 * **API:** All routes (`GET /api/chats`, `POST /api/chats/:id/messages`, etc.) work as expected.
 * **Fix:** The `updatedAt` field, which was missing in the original models, has been added to the conversation objects, so sorting and time display in the sidebar now work correctly.
-* **Files:** Uploaded photos are stored locally and served at `/uploads/...`.
+* **Files:** Uploaded photos are stored per user and served at `/uploads/...` only to their owner.
 
 ---
 
@@ -59,48 +63,130 @@ Free models allow 20 requests per minute and 50 per day for accounts that never 
 ### Code
 
 * `Agent/IChatAgent.cs` — the only thing endpoints know about the model.
-* `Agent/OpenRouter/OpenRouterChatAgent.cs` — the HTTP call, history trimming, error handling.
+* `Agent/OpenRouter/OpenRouterClient.cs` — the HTTP call and error handling, shared by the chat and the summary form.
+* `Agent/OpenRouter/OpenRouterChatAgent.cs` — chat replies, history trimming.
 * `Agent/SystemPrompt.cs` — the assistant's role: cars only, short answers in Ukrainian.
 * `Agent/AgentReplyRunner.cs` — timeout, 502, saving the reply; shared by `/messages` and `/reply`.
+* `Agent/OpenRouter/OpenRouterFormFiller.cs`, `Agent/ConsultationFormService.cs` — the consultation summary (below).
 
-Photos are not sent to the model yet; it only sees a `[фото]` marker.
+Photos are not sent to the model (the team decided against it); it only sees a `[фото]` marker.
+
+### AI chats belong to their user
+
+The chat (`/chat.html`) requires sign-in with the same account as the rest of the site (client or master). Every user sees only their own chats and photos:
+
+* chats are stored in `data/chats/<userId>/`, photos in `data/uploads/<userId>/`; the folder comes from the sign-in cookie, not from the request, so another user's chat or photo returns 404;
+* photos are served by an endpoint (`GET /uploads/{file}`), not as static files, so a photo URL is useless to anyone else;
+* if the session has expired, the chat page sends the user to `login.html?next=…` and back.
+
+### Consultation summary (MECH-86)
+
+At the end of a chat the user presses the clipboard button in the top bar, and the AI fills in a summary form from the conversation: car (make, model, year, engine, fuel, mileage), problem and symptoms, possible causes, urgency, whether it is safe to drive, recommended actions, type of work and what is still missing. The user can correct it, save it and copy it as text for the master.
+
+* **The AI must not invent facts.** If the chat does not mention the year, the field stays empty and goes to "what is missing". Rules and the JSON schema: `Agent/FormPrompt.cs` (keep it in sync with `Domain/ConsultationForm.cs`).
+* **Structured output first.** The request asks OpenRouter for JSON by schema (`response_format`, only providers that support it). If that is rejected or the reply is not valid JSON, there is one retry where only the instructions ask for JSON. 401/429/timeouts are not retried.
+* **Neither the AI nor the user is trusted:** both go through `ConsultationForm.Normalize()` (length limits, no empty or duplicate items, impossible year or mileage become empty).
+* The form is stored inside the chat file (`chat.form`) and deleted with the chat. `basedOnMessages` lets the page warn that the chat has new messages since the summary.
+* Settings: `Agent:FormMaxTokens` (2000), `Agent:FormMaxMessages` (40). Without an API key a stub fills only the problem from the first message.
+
+| Request | Result |
+|---|---|
+| `GET /api/chats/{id}/form` | 200 form, 204 not filled yet, 404 |
+| `POST /api/chats/{id}/form` | AI fills the form: 200 form; 400 no user messages yet; 409 already filling; 502 AI failed |
+| `PUT /api/chats/{id}/form` | Save the user's edits: 200 form (`editedByUser: true`); 400 invalid JSON |
 
 ---
 
-## Accounts and sign-in
+## Masters catalogue, booking and reviews
 
-Every user has an account (email + password) and sees only their own chats and photos.
+### Pages (`wwwroot/`)
 
-* **How it works:** ASP.NET Core Identity stores users in SQLite (`data/app.db`, created automatically on first run). After sign-in the server sets an `HttpOnly`, `SameSite=Strict` cookie (`aichat.auth`, 14 days, renewed while you use the site). The page never sees or stores the session itself.
-* **Pages:** `login.html` (sign in / create account). Any `/api` call that returns **401** sends the page to `login.html?next=...` and back after sign-in.
-* **Rules:** password of at least 8 characters; 5 wrong passwords lock the account for 5 minutes (HTTP 429).
-* **Everything requires sign-in by default** (fallback authorization policy). A new endpoint is private unless marked `.AllowAnonymous()`.
-* **Per-user data:** chats in `data/chats/<userId>/`, photos in `data/uploads/<userId>/`. Photos are served by an endpoint (`GET /uploads/{file}`), not as static files, so a photo URL is useless to anyone else.
-* **Cookie encryption keys** live in `data/keys/`. In Docker mount a volume at `/app/data`, otherwise everybody is signed out and all chats are lost when the container is recreated.
-* Chats created before sign-in existed (files directly in `data/chats/`) are not shown to anyone. Delete them by hand if you still have them.
+| Page | What it does |
+|---|---|
+| `index.html` + `catalog.js` | Main page: list of masters with filters by service, city, address or name, price, experience and rating; sorting. Filters live in the URL, so a search can be shared. |
+| `master.html` + `master.js` | "Learn more": description, phone, services with prices and durations, weekly schedule, booking (service → day → free time), reviews with a rating breakdown and a form. |
+| `login.html` + `login.js` | Sign in and registration as a **client** or a **master**. |
+| `account.html` + `account.js` | Client: own bookings, cancel, leave a review. Master: profile, services and prices, weekly schedule, days off, publishing; the generated timetable; bookings with client contacts. |
+| `app.js`, `site.css` | Shared helpers (API calls, header with sign-in) and styles; colours and fonts come from `styles.css`, the same design as the chat. |
+
+### Demo accounts
+
+All demo accounts use the password `demo12345`. The names and addresses are made up.
+
+| Email | Who |
+|---|---|
+| `master1@example.com` … `master6@example.com` | Published masters in Kyiv, Lviv, Kharkiv, Odesa, Dnipro |
+| `master7@example.com` | Master with an unpublished profile (try publishing it) |
+| `client1@example.com` | Client with an upcoming booking and a past visit that can still be reviewed |
+| `client2@example.com`, `client3@example.com` | Clients with past visits and reviews |
+
+Turn the demo data off with `"Database": { "SeedDemoData": false }`. It is only added to an empty database.
+
+### How the schedule is generated
+
+A master sets working days and hours (for example Wed, Thu, Fri 09:00–18:00), a slot step (15–60 min), how many days ahead clients can book (1–60) and single days off. Each service has its own price and duration.
+
+Free times are **not stored**. `Scheduling/ScheduleGenerator.cs` computes them on every request: from the start of each working day, in steps of the slot step, a time is free if the whole service fits before the end of the day, does not overlap an existing booking and starts at least 30 minutes from now. So a schedule change takes effect immediately, and existing bookings stay as they are.
+
+Booking runs under a per-master lock (`Scheduling/BookingLocks.cs`): the chosen time is checked against freshly generated slots and saved in one step, so two clients cannot take the same time. Times are local workshop time (`Booking:TimeZone`, default `Europe/Kyiv`).
+
+### Rules
+
+* Only a **client** can book; a booking can be cancelled by the client or the master until it starts.
+* A review (1–5 stars, up to 1000 characters) can be left only by a client who has had a visit to that master, once per master.
+* A master appears in the catalogue only when the profile is published and has a city, an address, at least one service and one working day.
+* Passwords are stored as PBKDF2-SHA256 hashes; sign-in uses an HttpOnly cookie; login and registration are limited to 10 attempts per minute per IP.
+* **Everything requires sign-in by default** (fallback authorization policy in `Accounts/AuthSetup.cs`). The catalogue, sign-in and registration are marked `.AllowAnonymous()`; a new endpoint is private unless marked the same way.
+* The keys that encrypt the sign-in cookie are kept in `data/keys/` (next to the database), so a restarted Docker container does not sign everyone out.
 
 ### API
 
-| Request | Body | Result |
+Errors always come as `{ "error": "text" }`.
+
+| Request | Who | What |
 |---|---|---|
-| `POST /api/auth/register` | `{ "email", "password" }` | 201 `{ id, email }` and signed in; 400 invalid email/password; 409 email taken |
-| `POST /api/auth/login` | `{ "email", "password", "rememberMe" }` | 200 `{ id, email }`; 401 wrong email or password; 429 locked out |
-| `POST /api/auth/logout` | — | 204 |
-| `GET /api/auth/me` | — | 200 `{ id, email }` or 401 |
+| `POST /api/auth/register` | anyone | `{ name, email, password, phone?, role: "client" \| "master" }` → signs in |
+| `POST /api/auth/login`, `POST /api/auth/logout`, `GET /api/auth/me` | anyone | Sign in / out, current user (`{ "user": null }` for guests) |
+| `GET /api/catalog` | anyone | Services (with master counts), cities, price range — for the filters |
+| `GET /api/masters?service=&city=&q=&minPrice=&maxPrice=&minExperience=&minRating=&sort=` | anyone | Catalogue; `sort` = `rating` (default), `reviews`, `price`, `experience` |
+| `GET /api/masters/{id}` | anyone | Full profile, reviews, what the viewer can do |
+| `GET /api/masters/{id}/slots?serviceId=&from=&days=` | anyone | Free times per day for a service |
+| `POST /api/bookings` | client | `{ masterId, serviceId, date: "2026-11-12", time: "09:30", comment? }` |
+| `GET /api/bookings/my` | client, master | Own bookings (client) or bookings to me (master) |
+| `POST /api/bookings/{id}/cancel` | client, master | Cancel a booking that has not started |
+| `POST /api/masters/{id}/reviews` | client | `{ rating, text }` |
+| `GET /api/my/master`, `PUT /api/my/master` | master | Read / save profile, services, schedule, days off, publishing |
+| `GET /api/my/master/timetable?from=&days=` | master | Generated timetable with booked cells |
+
+### Database
+
+The database is SQLite through Entity Framework Core (`Persistence/AppDbContext.cs`, tables in `Persistence/Entities.cs`). The file is `data/app.db` (folder from `Storage:DataPath`, already in `.gitignore`).
+
+The database is created with `EnsureCreated`, which does **not** update an existing database. After changing the models, delete `data/app.db` (the demo data will be created again). When we start keeping real data, switch to migrations:
+
+    dotnet tool install --global dotnet-ef
+    dotnet ef migrations add Initial
+    # and in Persistence/DatabaseSetup.cs replace EnsureCreatedAsync() with MigrateAsync()
+
+In Docker, mount a volume at `/app/data`, otherwise accounts and bookings disappear with the container.
 
 ---
 
 ## Project structure (for the backend)
 
 * `wwwroot/` — front-end static files.
-* `Domain/` — basic data models (`ChatSession`, `ChatMessage`).
-* `Infrastructure/` — file system work (`ChatStorage.cs`), image checks, busy tracking, database (`AppDbContext`) and sign-in setup (`Auth/`).
+* `Domain/` — chat data models (`ChatSession`, `ChatMessage`, `ConsultationForm`).
+* `Persistence/` — the SQLite database: entities, `AppDbContext`, creation and demo data. (Not `Data/`: on Windows that is the same folder as the runtime `data/`, which is in `.gitignore`.)
+* `Accounts/` — password hashing, cookie sign-in, current user, rate limit.
+* `Catalog/` — masters for the catalogue (`MasterCatalog`) and review rules.
+* `Scheduling/` — local time, schedule generation, booking locks.
+* `Infrastructure/` — file system work for AI chats (`ChatStorage.cs`, per user), image checks, busy tracking.
 * `Agent/` — the AI model behind `IChatAgent` (OpenRouter or the stub).
-* `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`).
-* `data/` — generated automatically. It holds the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
+* `Endpoints/` — all API routes (slices) live here. Each folder is responsible for one specific action (for example, `CreateChat`, `GetChats`, `SendMessage`); the catalogue slices are grouped in `Accounts/`, `Catalog/`, `Bookings/`, `Reviews/` and `MasterCabinet/`.
+* `data/` — generated automatically. It holds the database `app.db`, the `.json` conversation files and the uploaded photos (`uploads/`). **This folder is added to .gitignore.**
 
 ## Data and DB
-Users are stored in SQLite (`data/app.db`); conversations are still plain JSON files in `data/chats/<userId>/`. Nothing needs to be installed: the database file is created on first run. When the project scales, we will replace `ChatStorage` with Entity Framework Core without changes to the controller logic.
+Accounts, masters, bookings and reviews live in the SQLite database `data/app.db` (see "Database" above). Conversations with the AI assistant are still stored in plain JSON files in `data/chats/<userId>/`; they can move to the same database later by replacing `ChatStorage`.
 
 ## Design link
 https://www.figma.com/design/g8swP7duhrvI3IWAdLCoYh/CiteDesign?m=auto&t=N4wkvVdnlqKdQ9WJ-1

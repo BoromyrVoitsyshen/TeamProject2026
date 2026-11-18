@@ -1,4 +1,4 @@
-﻿using AiChat.Api.Domain;
+using AiChat.Api.Domain;
 using AiChat.Api.Infrastructure;
 using Microsoft.Extensions.Options;
 
@@ -26,7 +26,7 @@ public class AgentReplyRunner(
     IHostApplicationLifetime lifetime,
     ILogger<AgentReplyRunner> logger)
 {
-    public async Task<ReplyResult> RunAsync(string userId, string chatId)
+    public async Task<ReplyResult> RunAsync(int userId, string chatId)
     {
         var chat = await storage.GetChatAsync(userId, chatId);
         if (chat == null) return new ReplyResult(ReplyStatus.ChatGone);

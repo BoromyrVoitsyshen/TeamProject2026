@@ -78,9 +78,10 @@ function toLogin() {
 }
 
 // ───────────── Акаунт ─────────────
-function showAccount(me) {
-  $('#accountEmail').textContent = me.email;
-  $('#accountEmail').title = me.email;
+// user — з GET /api/auth/me: { id, name, email, role, ... } (див. Accounts/CurrentUser.DescribeAsync)
+function showAccount(user) {
+  $('#accountEmail').textContent = user.name || user.email;
+  $('#accountEmail').title = user.email;
   $('#account').hidden = false;
 }
 
@@ -1014,4 +1015,8 @@ input.maxLength = MAX_TEXT;
 syncDrawer();
 $('#logout').addEventListener('click', logout);
 // Спершу дізнаємось, хто увійшов (401 — одразу на сторінку входу), потім вантажимо розмови
-api('/auth/me').then(showAccount, () => {}).then(loadList).then(route);
+// /api/auth/me для гостя відповідає 200 { user: null }, а не 401 — тож перевіряємо й це
+api('/auth/me')
+  .then((me) => (me?.user ? showAccount(me.user) : toLogin()), () => {})
+  .then(loadList)
+  .then(route);

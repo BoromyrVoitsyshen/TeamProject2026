@@ -1,89 +1,82 @@
-// Сторінка входу і реєстрації. Сесія — HttpOnly-cookie, яку ставить сервер: тут ми її не бачимо й не зберігаємо.
+// Вхід і реєстрація. Після успіху повертаємо туди, звідки прийшли (?next=…),
+// а нового майстра — у кабінет, щоб він заповнив профіль і розклад.
+'use strict';
 
-const $ = (selector) => document.querySelector(selector);
-const form = $('#authForm');
-const title = $('#authTitle');
-const email = $('#email');
-const password = $('#password');
-const passwordHint = $('#passwordHint');
-const remember = $('#remember');
-const rememberRow = $('#rememberRow');
-const errorEl = $('#authError');
-const submit = $('#submit');
-const modeLogin = $('#modeLogin');
-const modeRegister = $('#modeRegister');
+const params = new URLSearchParams(location.search);
+const forms = { login: $('#loginForm'), register: $('#registerForm') };
+const tabs = { login: $('#tabLogin'), register: $('#tabRegister') };
 
-let mode = new URLSearchParams(location.search).get('mode') === 'register' ? 'register' : 'login';
+init();
 
-// Куди повернутися після входу. Лише адреси нашого ж сайту: інакше посилання на кшталт
-// login.html?next=https://evil.example після входу відправило б користувача на чужий сайт
-function nextUrl() {
-  const next = new URLSearchParams(location.search).get('next');
-  if (next && next.startsWith('/') && !next.startsWith('//') && !next.startsWith('/\\')) return next;
-  return 'chat.html';
-}
-
-function setMode(next) {
-  mode = next;
-  const register = mode === 'register';
-  title.textContent = register ? 'Створити акаунт' : 'Вхід';
-  document.title = title.textContent;
-  submit.textContent = register ? 'Створити акаунт' : 'Увійти';
-  modeLogin.setAttribute('aria-pressed', String(!register));
-  modeRegister.setAttribute('aria-pressed', String(register));
-  // Підказки менеджеру паролів: новий пароль — запропонувати згенерувати, наявний — підставити
-  password.autocomplete = register ? 'new-password' : 'current-password';
-  password.minLength = register ? 8 : 0;
-  passwordHint.hidden = !register;
-  rememberRow.hidden = register;
-  showError('');
-}
-
-function showError(message) {
-  errorEl.textContent = message;
-  errorEl.hidden = !message;
-}
-
-async function post(path, body) {
-  let response;
-  try {
-    response = await fetch(`/api/auth/${path}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-  } catch {
-    return { ok: false, error: 'Немає зв’язку із сервером. Перевірте інтернет і спробуйте ще раз.' };
+async function init() {
+  const user = await loadMe();
+  if (user) {
+    location.replace(safeNext() ?? 'account.html');
+    return;
   }
-  const data = await response.json().catch(() => null);
-  return { ok: response.ok, error: data?.error ?? 'Сервер відповів помилкою. Спробуйте ще раз.' };
+
+  show(params.get('mode') === 'register' ? 'register' : 'login', false);
+  tabs.login.addEventListener('click', () => show('login'));
+  tabs.register.addEventListener('click', () => show('register'));
+  document.querySelectorAll('[data-switch]').forEach((link) => link.addEventListener('click', (event) => {
+    event.preventDefault();
+    show(link.dataset.switch);
+  }));
+
+  forms.login.addEventListener('submit', (event) => submit(event, '/auth/login', {
+    email: forms.login.elements.email.value,
+    password: forms.login.elements.password.value,
+  }));
+
+  forms.register.addEventListener('submit', (event) => submit(event, '/auth/register', {
+    role: forms.register.elements.role.value,
+    name: forms.register.elements.name.value,
+    email: forms.register.elements.email.value,
+    phone: forms.register.elements.phone.value,
+    password: forms.register.elements.password.value,
+  }));
 }
 
-form.addEventListener('submit', async (event) => {
+function show(mode, focus = true) {
+  for (const key of Object.keys(forms)) {
+    forms[key].hidden = key !== mode;
+    tabs[key].setAttribute('aria-selected', String(key === mode));
+  }
+  document.title = mode === 'register' ? 'Реєстрація — Mechs' : 'Вхід — Mechs';
+  const url = new URL(location.href);
+  if (mode === 'register') url.searchParams.set('mode', 'register');
+  else url.searchParams.delete('mode');
+  history.replaceState(null, '', url);
+  if (focus) forms[mode].querySelector('input:not([type="radio"])')?.focus();
+}
+
+async function submit(event, path, body) {
   event.preventDefault();
-  const values = { email: email.value.trim(), password: password.value };
-  if (!values.email || !values.password) return showError('Вкажіть email і пароль.');
-  if (mode === 'register' && values.password.length < 8) return showError('Пароль має містити щонайменше 8 символів.');
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  const error = form.querySelector('.form-error');
+  error.hidden = true;
+  button.disabled = true;
 
-  submit.disabled = true;
-  showError('');
-  const result = mode === 'register'
-    ? await post('register', values)
-    : await post('login', { ...values, rememberMe: remember.checked });
-  submit.disabled = false;
-
-  if (result.ok) location.replace(nextUrl());
-  else {
-    showError(result.error);
-    password.select();
+  try {
+    const { user } = await api(path, { method: 'POST', body });
+    const isNewMaster = path.endsWith('register') && user.role === 'master';
+    location.replace(isNewMaster ? 'account.html' : safeNext() ?? (user.role === 'master' ? 'account.html' : './'));
+  } catch (err) {
+    error.textContent = err.message;
+    error.hidden = false;
+    button.disabled = false;
   }
-});
+}
 
-modeLogin.addEventListener('click', () => setMode('login'));
-modeRegister.addEventListener('click', () => setMode('register'));
-
-// Уже увійшли (наприклад, відкрили login.html із закладок) — одразу до чату
-fetch('/api/auth/me').then((response) => { if (response.ok) location.replace(nextUrl()); }, () => {});
-
-setMode(mode);
-email.focus();
+// Повертаємо лише на сторінки цього сайту: ?next=https://чужий-сайт не спрацює
+function safeNext() {
+  const next = params.get('next');
+  if (!next) return null;
+  try {
+    const url = new URL(next, location.origin + '/');
+    return url.origin === location.origin ? url.pathname + url.search + url.hash : null;
+  } catch {
+    return null;
+  }
+}

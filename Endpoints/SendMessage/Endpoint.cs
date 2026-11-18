@@ -1,8 +1,8 @@
-﻿using AiChat.Api.Agent;
+using AiChat.Api.Agent;
 using AiChat.Api.Domain;
 using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -31,7 +31,7 @@ public class Endpoint : IEndpoint
         CancellationToken ct)
     {
         // 1. Перевіряємо все, що можна, ще до того, як щось записати на диск
-        var userId = user.GetUserId();
+        var userId = user.RequireUserId();
         if (await storage.GetChatAsync(userId, chatId) == null) return ApiResults.ChatNotFound();
 
         text = text?.Trim() ?? string.Empty;

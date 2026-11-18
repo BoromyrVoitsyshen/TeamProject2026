@@ -1,7 +1,7 @@
-﻿using AiChat.Api.Domain;
+using AiChat.Api.Domain;
 using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -29,7 +29,7 @@ public class Endpoint : IEndpoint
 
         // UpdateChatAsync, а не Get + Save: інакше перейменування могло б затерти повідомлення,
         // яке агент дописав у цю розмову між нашим читанням і записом
-        var chat = await storage.UpdateChatAsync(user.GetUserId(), id, c =>
+        var chat = await storage.UpdateChatAsync(user.RequireUserId(), id, c =>
         {
             c.Title = title;
             c.UpdatedAt = DateTime.UtcNow;

@@ -1,4 +1,4 @@
-﻿namespace AiChat.Api.Domain;
+namespace AiChat.Api.Domain;
 
 public class ChatSession
 {
@@ -8,11 +8,14 @@ public class ChatSession
     public string Title { get; set; } = DefaultTitle;
 
     /// <summary>
-    /// Id власника (AppUser.Id). Доступ і так обмежує папка користувача в ChatStorage; поле потрібне,
+    /// Id власника (Users.Id у базі). Доступ і так обмежує папка користувача в ChatStorage; поле потрібне,
     /// щоб файл був самодостатнім — знадобиться при переїзді чатів у базу даних.
     /// </summary>
-    public string OwnerId { get; set; } = string.Empty;
+    public int OwnerId { get; set; }
     public List<ChatMessage> Messages { get; set; } = new();
+
+    /// <summary>Підсумок консультації (MECH-86). null — ще не заповнювали.</summary>
+    public ConsultationForm? Form { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

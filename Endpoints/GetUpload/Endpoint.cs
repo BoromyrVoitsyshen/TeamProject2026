@@ -1,6 +1,6 @@
-﻿using System.Security.Claims;
+using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -32,7 +32,7 @@ public class Endpoint : IEndpoint
     private static IResult Handle(string fileName, ClaimsPrincipal user, ChatStorage storage, HttpContext http)
     {
         if (!ContentTypes.TryGetValue(Path.GetExtension(fileName), out var contentType) ||
-            !storage.TryGetUploadPath(user.GetUserId(), $"/uploads/{fileName}", out var path) ||
+            !storage.TryGetUploadPath(user.RequireUserId(), $"/uploads/{fileName}", out var path) ||
             !File.Exists(path))
         {
             return Results.NotFound();

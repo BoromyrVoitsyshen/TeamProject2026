@@ -1,7 +1,7 @@
-﻿using AiChat.Api.Domain;
+using AiChat.Api.Domain;
 using System.Security.Claims;
+using AiChat.Api.Accounts;
 using AiChat.Api.Infrastructure;
-using AiChat.Api.Infrastructure.Auth;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
@@ -18,7 +18,7 @@ public class Endpoint : IEndpoint
     private static async Task<IResult> HandleAsync(ClaimsPrincipal user, ChatStorage storage, ChatBusyTracker busy)
     {
         var newChat = new ChatSession();
-        await storage.SaveChatAsync(user.GetUserId(), newChat);
+        await storage.SaveChatAsync(user.RequireUserId(), newChat);
 
         // 201 Created + Location — стандартна відповідь на створення ресурсу
         return Results.Created($"/api/chats/{newChat.Id}", ApiResults.ChatDetails(newChat, busy));
