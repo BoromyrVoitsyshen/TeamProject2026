@@ -13,6 +13,9 @@ public class ChatSession
     /// </summary>
     public string OwnerId { get; set; } = string.Empty;
     public List<ChatMessage> Messages { get; set; } = new();
+
+    /// <summary>Підсумок консультації (MECH-86). null — ще не заповнювали.</summary>
+    public ConsultationForm? Form { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

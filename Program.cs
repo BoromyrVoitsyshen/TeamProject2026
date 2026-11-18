@@ -36,8 +36,9 @@ var useOpenRouter = !string.IsNullOrWhiteSpace(builder.Configuration[$"{AgentOpt
 if (useOpenRouter)
 {
     // Typed client: IHttpClientFactory сам керує з'єднаннями (не вичерпує сокети, оновлює DNS).
-    // Через це OpenRouterChatAgent — transient, тож AgentReplyRunner, який його отримує, теж не singleton.
-    builder.Services.AddHttpClient<IChatAgent, OpenRouterChatAgent>((services, http) =>
+    // Через це OpenRouterClient — transient, тож і все, що його отримує (агент чату, заповнення форми,
+    // AgentReplyRunner), не singleton.
+    builder.Services.AddHttpClient<OpenRouterClient>((services, http) =>
     {
         var agent = services.GetRequiredService<IOptions<AgentOptions>>().Value;
 
@@ -50,6 +51,8 @@ if (useOpenRouter)
         // а тут лише запасна межа, щоб запит не висів вічно
         http.Timeout = TimeSpan.FromSeconds(agent.TimeoutSeconds + 30);
     });
+    builder.Services.AddTransient<IChatAgent, OpenRouterChatAgent>();
+    builder.Services.AddTransient<IConsultationFormFiller, OpenRouterFormFiller>();
 
     // Перевірка Agent:Models при старті (лише попередження в лог, див. ModelAvailabilityCheck)
     builder.Services.AddHttpClient(ModelAvailabilityCheck.HttpClientName, (services, http) =>
@@ -65,9 +68,11 @@ else
 {
     // Без ключа (наприклад, у когось із команди немає свого) сайт працює із заглушкою
     builder.Services.AddSingleton<IChatAgent, StubChatAgent>();
+    builder.Services.AddSingleton<IConsultationFormFiller, StubFormFiller>();
 }
 
 builder.Services.AddScoped<AgentReplyRunner>();
+builder.Services.AddScoped<ConsultationFormService>();
 
 builder.Services.AddEndpoints(typeof(Program).Assembly);
 

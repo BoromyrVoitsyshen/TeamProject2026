@@ -59,11 +59,31 @@ Free models allow 20 requests per minute and 50 per day for accounts that never 
 ### Code
 
 * `Agent/IChatAgent.cs` — the only thing endpoints know about the model.
-* `Agent/OpenRouter/OpenRouterChatAgent.cs` — the HTTP call, history trimming, error handling.
+* `Agent/OpenRouter/OpenRouterClient.cs` — the HTTP call and error handling, shared by the chat and the summary form.
+* `Agent/OpenRouter/OpenRouterChatAgent.cs` — chat replies, history trimming.
+* `Agent/OpenRouter/OpenRouterFormFiller.cs`, `Agent/ConsultationFormService.cs` — the consultation summary (MECH-86).
 * `Agent/SystemPrompt.cs` — the assistant's role: cars only, short answers in Ukrainian.
 * `Agent/AgentReplyRunner.cs` — timeout, 502, saving the reply; shared by `/messages` and `/reply`.
 
 Photos are not sent to the model yet; it only sees a `[фото]` marker.
+
+---
+
+## Consultation summary (MECH-86)
+
+At the end of a chat the user presses the clipboard button in the top bar, and the AI fills in a summary form from the conversation: car (make, model, year, engine, fuel, mileage), problem and symptoms, possible causes, urgency, whether it is safe to drive, recommended actions, type of work and what is still missing. The user can correct it, save it and copy it as text for the mechanic.
+
+* **The AI must not invent facts.** If the chat does not mention the year, the field stays empty and goes to "what is missing". Rules and the JSON schema: `Agent/FormPrompt.cs` (keep it in sync with `Domain/ConsultationForm.cs`).
+* **Structured output first.** The request asks OpenRouter for JSON by schema (`response_format`, only providers that support it). If that is rejected or the reply is not valid JSON, there is one retry where only the instructions ask for JSON. 401/429/timeouts are not retried.
+* **Neither the AI nor the user is trusted:** both go through `ConsultationForm.Normalize()` (length limits, no empty or duplicate items, impossible year or mileage become empty).
+* The form is stored inside the chat file (`chat.form`) and deleted with the chat. `basedOnMessages` lets the page warn that the chat has new messages since the summary.
+* Settings: `Agent:FormMaxTokens` (2000), `Agent:FormMaxMessages` (40). Without an API key a stub fills only the problem from the first message.
+
+| Request | Result |
+|---|---|
+| `GET /api/chats/{id}/form` | 200 form, 204 not filled yet, 404 |
+| `POST /api/chats/{id}/form` | AI fills the form: 200 form; 400 no user messages yet; 409 already filling; 502 AI failed |
+| `PUT /api/chats/{id}/form` | Save the user's edits: 200 form (`editedByUser: true`); 400 invalid JSON |
 
 ---
 
